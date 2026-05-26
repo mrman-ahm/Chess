@@ -81,6 +81,7 @@ private:
     void update(float dt);
     void render();
     void loadTextures();
+    void loadCustomCursor();
     void renderGame();
     void renderExitConfirmation();
     void renderEndGameModal();         // Premium glassmorphic end-game popup
@@ -121,6 +122,7 @@ private:
     void handleLoadGameEvents(const sf::Event& event);
 
     sf::RenderWindow window;
+    sf::Cursor customCursor;
     sf::Clock clock;
 
     ChessBoard board;

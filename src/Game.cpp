@@ -9,7 +9,115 @@
 #include <ctime>
 #include <cmath>
 #include <cctype>
+#include <cstdint>
 #include <random>
+
+static std::uint16_t readU16LE(const std::vector<unsigned char>& bytes, std::size_t pos) {
+    return static_cast<std::uint16_t>(bytes[pos] | (bytes[pos + 1] << 8));
+}
+
+static std::uint32_t readU32LE(const std::vector<unsigned char>& bytes, std::size_t pos) {
+    return static_cast<std::uint32_t>(bytes[pos] |
+                                     (bytes[pos + 1] << 8) |
+                                     (bytes[pos + 2] << 16) |
+                                     (bytes[pos + 3] << 24));
+}
+
+static std::int32_t readS32LE(const std::vector<unsigned char>& bytes, std::size_t pos) {
+    return static_cast<std::int32_t>(readU32LE(bytes, pos));
+}
+
+static bool loadCurFile(const std::string& path, sf::Cursor& cursor) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file) return false;
+
+    std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(file)),
+                                     std::istreambuf_iterator<char>());
+    if (bytes.size() < 22) return false;
+
+    if (readU16LE(bytes, 0) != 0 || readU16LE(bytes, 2) != 2 || readU16LE(bytes, 4) == 0) {
+        return false;
+    }
+
+    const std::size_t entry = 6;
+    const unsigned int width = bytes[entry] == 0 ? 256u : bytes[entry];
+    const unsigned int height = bytes[entry + 1] == 0 ? 256u : bytes[entry + 1];
+    const unsigned int hotspotX = readU16LE(bytes, entry + 4);
+    const unsigned int hotspotY = readU16LE(bytes, entry + 6);
+    const std::uint32_t imageSize = readU32LE(bytes, entry + 8);
+    const std::uint32_t imageOffset = readU32LE(bytes, entry + 12);
+    if (imageOffset + imageSize > bytes.size() || imageSize < 40) return false;
+
+    const std::size_t dib = imageOffset;
+    const std::uint32_t headerSize = readU32LE(bytes, dib);
+    if (headerSize < 40 || dib + headerSize > bytes.size()) return false;
+
+    const std::int32_t dibWidth = readS32LE(bytes, dib + 4);
+    const std::int32_t dibHeight = readS32LE(bytes, dib + 8);
+    const std::uint16_t bitCount = readU16LE(bytes, dib + 14);
+    const std::uint32_t compression = readU32LE(bytes, dib + 16);
+    const std::uint32_t colorUsed = readU32LE(bytes, dib + 32);
+    if (dibWidth <= 0 || dibHeight == 0 || compression != 0) return false;
+
+    const unsigned int actualWidth = static_cast<unsigned int>(dibWidth);
+    const unsigned int actualHeight = static_cast<unsigned int>(std::abs(dibHeight) / 2);
+    if (actualWidth != width || actualHeight != height) return false;
+
+    const std::size_t colorCount = bitCount <= 8 ? (colorUsed ? colorUsed : (1u << bitCount)) : 0;
+    const std::size_t paletteOffset = dib + headerSize;
+    const std::size_t pixelOffset = paletteOffset + colorCount * 4;
+    if (pixelOffset > bytes.size()) return false;
+
+    const std::size_t xorStride = ((actualWidth * bitCount + 31) / 32) * 4;
+    const std::size_t andStride = ((actualWidth + 31) / 32) * 4;
+    const std::size_t andOffset = pixelOffset + xorStride * actualHeight;
+    if (andOffset + andStride * actualHeight > bytes.size()) return false;
+
+    std::vector<sf::Uint8> pixels(actualWidth * actualHeight * 4, 0);
+    const bool bottomUp = dibHeight > 0;
+
+    for (unsigned int y = 0; y < actualHeight; ++y) {
+        const unsigned int srcY = bottomUp ? (actualHeight - 1 - y) : y;
+        const std::size_t row = pixelOffset + srcY * xorStride;
+        const std::size_t maskRow = andOffset + srcY * andStride;
+
+        for (unsigned int x = 0; x < actualWidth; ++x) {
+            sf::Uint8 r = 0, g = 0, b = 0, a = 255;
+
+            if (bitCount == 32) {
+                const std::size_t pos = row + x * 4;
+                b = bytes[pos];
+                g = bytes[pos + 1];
+                r = bytes[pos + 2];
+                a = bytes[pos + 3];
+            } else if (bitCount == 24) {
+                const std::size_t pos = row + x * 3;
+                b = bytes[pos];
+                g = bytes[pos + 1];
+                r = bytes[pos + 2];
+            } else if (bitCount == 8) {
+                const unsigned int index = bytes[row + x];
+                const std::size_t pos = paletteOffset + index * 4;
+                b = bytes[pos];
+                g = bytes[pos + 1];
+                r = bytes[pos + 2];
+            } else {
+                return false;
+            }
+
+            const bool masked = (bytes[maskRow + x / 8] & (0x80 >> (x % 8))) != 0;
+            if (masked) a = 0;
+
+            const std::size_t out = (y * actualWidth + x) * 4;
+            pixels[out] = r;
+            pixels[out + 1] = g;
+            pixels[out + 2] = b;
+            pixels[out + 3] = a;
+        }
+    }
+
+    return cursor.loadFromPixels(pixels.data(), {actualWidth, actualHeight}, {hotspotX, hotspotY});
+}
 
 static float parseBaseTime(const std::string& str) {
     if (str == "1 Min") return 60.f;
@@ -50,6 +158,7 @@ Game::Game()
              sf::Style::Fullscreen)
 {
     window.setFramerateLimit(60);
+    loadCustomCursor();
     loadTextures();
 
     if (!blueFont.loadFromFile("Sprites/Bluefont.fnt", "Sprites/Bluefont.png"))
@@ -68,6 +177,27 @@ Game::Game()
 
     ensureDirectoriesExist();
     loadConfig();
+}
+
+void Game::loadCustomCursor() {
+    std::string cursorPath = "Sprites/Cursor/beyaz fil.cur";
+
+    std::ifstream cursorSet("Sprites/Cursor/chess.crs");
+    std::string line;
+    while (std::getline(cursorSet, line)) {
+        const std::string prefix = "Path=";
+        if (line.rfind(prefix, 0) == 0 && line.size() > prefix.size()) {
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            cursorPath = "Sprites/Cursor/" + line.substr(prefix.size());
+            break;
+        }
+    }
+
+    if (loadCurFile(cursorPath, customCursor)) {
+        window.setMouseCursor(customCursor);
+    } else {
+        std::cerr << "Failed to load custom cursor: " << cursorPath << "\n";
+    }
 }
 
 void Game::loadTextures() {
