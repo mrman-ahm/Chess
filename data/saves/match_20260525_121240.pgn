@@ -1,0 +1,15 @@
+[Event "Casual Match"]
+[Site "Local Machine"]
+[Date "2026.05.25"]
+[Round "1"]
+[White "Player 1"]
+[Black "Player 2"]
+[WhiteAvatar "0"]
+[BlackAvatar "0"]
+[Result "1/2-1/2"]
+
+1. e2-e4 e7-e5
+2. f2-f4 e5xf4
+3. g2-g4 Qd8-h4
+4. Ke1-e2 Qh4-e1
+5. Ke2xe1 f4-f3

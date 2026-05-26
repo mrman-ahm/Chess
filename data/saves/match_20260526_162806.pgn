@@ -1,0 +1,18 @@
+[Event "Casual Match"]
+[Site "Local Machine"]
+[Date "2026.05.26"]
+[Round "1"]
+[White "Player 1"]
+[Black "Player 2"]
+[WhiteAvatar "0"]
+[BlackAvatar "0"]
+[Result "1/2-1/2"]
+[WhiteTime "597"]
+[BlackTime "540"]
+[TimeControl "600"]
+[IncrementTime "0"]
+[DelayTime "0"]
+[ReviewPly "3"]
+
+1. f2-f4 e7-e6
+2. Ke1-f2

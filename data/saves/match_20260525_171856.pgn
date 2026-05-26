@@ -1,0 +1,34 @@
+[Event "Casual Match"]
+[Site "Local Machine"]
+[Date "2026.05.25"]
+[Round "1"]
+[White "Player 1"]
+[Black "Stockfish"]
+[WhiteAvatar "0"]
+[BlackAvatar "0"]
+[Result "1/2-1/2"]
+[WhiteTime "500"]
+[BlackTime "596"]
+[TimeControl "600"]
+[IncrementTime "0"]
+[DelayTime "0"]
+
+1. e2-e4 e7-e5
+2. d2-d4 e5xd4
+3. Qd1xd4 Ng8-f6
+4. Bf1-c4 Nb8-c6
+5. Qd4-e3 Nc6-e5
+6. Bc4-d3 Bf8-e7
+7. Qe3-g5 Nf6-g4
+8. Qg5-f4 Be7-h4
+9. g2-g3 Bh4-e7
+10. Ng1-f3 d7-d6
+11. Nf3xe5 Ng4xe5
+12. Qf4xf7 Ke8xf7
+13. Bd3-b5 Rh8-f8
+14. f2-f4 Ne5-f3
+15. Ke1-f2 Nf3-e5
+16. Kf2-e3 Ne5-g4
+17. Ke3-f3 d6-d5
+18. e4xd5 Qd8xd5
+19. Kf3-e2 Qd5xb5

@@ -1,0 +1,27 @@
+[Event "Casual Match"]
+[Site "Local Machine"]
+[Date "2026.05.25"]
+[Round "1"]
+[White "Player 1"]
+[Black "Player 2"]
+[WhiteAvatar "0"]
+[BlackAvatar "0"]
+[Result "1-0"]
+[WhiteTime "534"]
+[BlackTime "539"]
+[TimeControl "600"]
+
+1. e2-e4 d7-d5
+2. Qd1-h5 d5xe4
+3. Bf1-c4 e4-e3
+4. Nb1-c3 e3xf2
+5. Ke1xf2 b7-b6
+6. Nc3-e4 b6-b5
+7. Ne4-f6 g7xf6
+8. Ng1-h3 f6-f5
+9. Rh1-e1 f5-f4
+10. Re1-e5 f4-f3
+11. Re5-f5 b5-b4
+12. Nh3-g5 b4-b3
+13. Rf5-d5 a7-a5
+14. Qh5xf7

@@ -3,6 +3,7 @@ menu_background=Midnight
 board_tile_theme=Minimalist
 board_background=Marble Slab
 board_perspective=Black
+cursor_style=Chess
 
 # Player Clocks (in seconds)
 time_control=600

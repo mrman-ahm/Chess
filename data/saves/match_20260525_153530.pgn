@@ -1,0 +1,20 @@
+[Event "Casual Match"]
+[Site "Local Machine"]
+[Date "2026.05.25"]
+[Round "1"]
+[White "Player 1"]
+[Black "Player 2"]
+[WhiteAvatar "0"]
+[BlackAvatar "0"]
+[Result "1/2-1/2"]
+[WhiteTime "592"]
+[BlackTime "593"]
+[TimeControl "600"]
+[IncrementTime "0"]
+[DelayTime "0"]
+
+1. e2-e4 d7-d5
+2. f2-f3 d5-d4
+3. Bf1-d3 c7-c5
+4. Ng1-h3 c5-c4
+5. O-O
