@@ -1,7 +1,7 @@
 # Compiler and flags
 CXX = g++
-CXXFLAGS = -Iinclude -Wall -Wextra -std=c++17
-LDFLAGS = -lsfml-graphics -lsfml-window -lsfml-system
+CXXFLAGS = -Iinclude -Iexternal/SFML/include -Wall -Wextra -std=c++17
+LDFLAGS = -Lexternal/SFML/lib -lsfml-graphics -lsfml-window -lsfml-system
 
 # Directories
 SRC_DIR = src
@@ -18,6 +18,7 @@ all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
 	@if not exist $(BIN_DIR) mkdir $(BIN_DIR)
+	@copy /Y "external\SFML\bin\*.dll" "$(BIN_DIR)\" >nul
 	$(CXX) $(OBJECTS) -o $(TARGET) $(LDFLAGS)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
@@ -29,6 +30,6 @@ clean:
 	@if exist $(BIN_DIR) rmdir /s /q $(BIN_DIR)
 
 run: all
-	./$(TARGET)
+	$(TARGET)
 
 .PHONY: all clean run
