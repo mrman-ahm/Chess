@@ -57,6 +57,13 @@ void SettingsScreen::buildRows() {
         r.currentIndex = 0;
         rows.push_back(r);
     }
+    {
+        SelectorRow r;
+        r.label = "CURSOR STYLE";
+        r.options = { "Chess", "System" };
+        r.currentIndex = 0;
+        rows.push_back(r);
+    }
     // ── Row 4 : Base Time ──────────────────────────────────────────────────
     {
         SelectorRow r;
@@ -82,7 +89,7 @@ void SettingsScreen::buildRows() {
         rows.push_back(r);
     }
 
-    rows.resize(4);
+    rows.resize(5);
 }
 
 // ─── Events ───────────────────────────────────────────────────────────────
@@ -96,7 +103,7 @@ void SettingsScreen::handleEvent(const sf::Event& event) {
         if (event.key.code == sf::Keyboard::Up)
             focusedRow = std::max(0, focusedRow - 1);
         if (event.key.code == sf::Keyboard::Down)
-            focusedRow = std::min(std::min(3, (int)rows.size() - 1), focusedRow + 1);
+            focusedRow = std::min(std::min(4, (int)rows.size() - 1), focusedRow + 1);
         if (event.key.code == sf::Keyboard::Left) {
             rows[focusedRow].prev();
             rows[focusedRow].leftScale = 1.35f;   // trigger bulge
@@ -119,7 +126,7 @@ void SettingsScreen::handleEvent(const sf::Event& event) {
         float panelX  = W / 2.f - panelW / 2.f;
         float startY  = H * 0.22f;
 
-        int visibleRows = std::min(4, (int)rows.size());
+        int visibleRows = std::min(5, (int)rows.size());
         for (int i = 0; i < visibleRows; ++i) {
             float rowY = startY + i * (rowH + rowGap);
             float rowCX = panelX + panelW / 2.f;
@@ -351,7 +358,7 @@ void SettingsScreen::draw() {
     float startY = H * 0.22f;
     float cx     = W / 2.f;
 
-    int visibleRows = std::min(4, (int)rows.size());
+    int visibleRows = std::min(5, (int)rows.size());
     for (int i = 0; i < visibleRows; ++i) {
         drawRow(rows[i], cx, startY + i * (rowH + rowGap), i == focusedRow);
     }

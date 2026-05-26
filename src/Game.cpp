@@ -27,7 +27,9 @@ static std::int32_t readS32LE(const std::vector<unsigned char>& bytes, std::size
     return static_cast<std::int32_t>(readU32LE(bytes, pos));
 }
 
-static bool loadCurFile(const std::string& path, sf::Cursor& cursor) {
+static bool loadCurFile(const std::string& path, sf::Cursor& cursor,
+                        unsigned int scaleNumerator = 1,
+                        unsigned int scaleDenominator = 1) {
     std::ifstream file(path, std::ios::binary);
     if (!file) return false;
 
@@ -116,6 +118,30 @@ static bool loadCurFile(const std::string& path, sf::Cursor& cursor) {
         }
     }
 
+    if (scaleNumerator > 1 && scaleDenominator > 0) {
+        const unsigned int scaledWidth = actualWidth * scaleNumerator / scaleDenominator;
+        const unsigned int scaledHeight = actualHeight * scaleNumerator / scaleDenominator;
+        std::vector<sf::Uint8> scaledPixels(scaledWidth * scaledHeight * 4, 0);
+
+        for (unsigned int y = 0; y < scaledHeight; ++y) {
+            for (unsigned int x = 0; x < scaledWidth; ++x) {
+                const unsigned int srcX = x * actualWidth / scaledWidth;
+                const unsigned int srcY = y * actualHeight / scaledHeight;
+                const std::size_t src = (srcY * actualWidth + srcX) * 4;
+                const std::size_t dst = (y * scaledWidth + x) * 4;
+                scaledPixels[dst] = pixels[src];
+                scaledPixels[dst + 1] = pixels[src + 1];
+                scaledPixels[dst + 2] = pixels[src + 2];
+                scaledPixels[dst + 3] = pixels[src + 3];
+            }
+        }
+
+        return cursor.loadFromPixels(scaledPixels.data(),
+                                     {scaledWidth, scaledHeight},
+                                     {hotspotX * scaleNumerator / scaleDenominator,
+                                      hotspotY * scaleNumerator / scaleDenominator});
+    }
+
     return cursor.loadFromPixels(pixels.data(), {actualWidth, actualHeight}, {hotspotX, hotspotY});
 }
 
@@ -158,6 +184,7 @@ Game::Game()
              sf::Style::Fullscreen)
 {
     window.setFramerateLimit(60);
+    systemCursorLoaded = systemCursor.loadFromSystem(sf::Cursor::Arrow);
     loadCustomCursor();
     loadTextures();
 
@@ -177,6 +204,7 @@ Game::Game()
 
     ensureDirectoriesExist();
     loadConfig();
+    applyCursorSetting();
 }
 
 void Game::loadCustomCursor() {
@@ -193,10 +221,21 @@ void Game::loadCustomCursor() {
         }
     }
 
-    if (loadCurFile(cursorPath, customCursor)) {
-        window.setMouseCursor(customCursor);
+    customCursorLoaded = loadCurFile(cursorPath, customCursor, 3, 2);
+    if (customCursorLoaded) {
+        applyCursorSetting();
     } else {
         std::cerr << "Failed to load custom cursor: " << cursorPath << "\n";
+    }
+}
+
+void Game::applyCursorSetting() {
+    usingCustomCursor = !settingsScreen || settingsScreen->getCursorStyle() == "Chess";
+
+    if (usingCustomCursor && customCursorLoaded) {
+        window.setMouseCursor(customCursor);
+    } else if (systemCursorLoaded) {
+        window.setMouseCursor(systemCursor);
     }
 }
 
@@ -918,8 +957,10 @@ void Game::update(float dt) {
         }
     } else if (currentState == State::SETTINGS) {
         settingsScreen->update(dt);
+        applyCursorSetting();
         if (settingsScreen->getAction() == SettingsAction::Back) {
             settingsScreen->clearAction();
+            saveConfig();
             // Return to whichever screen opened Settings
             if (previousState == State::MENU) menu->startFadeIn();
             startTransition(previousState);
@@ -1980,13 +2021,14 @@ void Game::loadConfig() {
         } else if (key == "total_games") {
             try { statTotalGames = std::stoi(val); } catch (...) {}
         } else if (key == "menu_background" || key == "board_tile_theme" || key == "board_background" ||
-                   key == "board_perspective") {
+                   key == "board_perspective" || key == "cursor_style") {
             if (settingsScreen) {
                 int rowIdx = -1;
                 if (key == "menu_background") rowIdx = 0;
                 else if (key == "board_tile_theme") rowIdx = 1;
                 else if (key == "board_background") rowIdx = 2;
                 else if (key == "board_perspective") rowIdx = 3;
+                else if (key == "cursor_style") rowIdx = 4;
                 if (rowIdx != -1) {
                     settingsScreen->setSelection(rowIdx, val);
                 }
@@ -2005,11 +2047,13 @@ void Game::saveConfig() {
         file << "board_tile_theme=" << settingsScreen->getBoardTileTheme() << "\n";
         file << "board_background=" << settingsScreen->getBoardBg() << "\n";
         file << "board_perspective=" << settingsScreen->getBoardPerspective() << "\n";
+        file << "cursor_style=" << settingsScreen->getCursorStyle() << "\n";
     } else {
         file << "menu_background=Default\n";
         file << "board_tile_theme=Classic\n";
         file << "board_background=Texture\n";
         file << "board_perspective=White\n";
+        file << "cursor_style=Chess\n";
     }
     
     file << "\n# Player Clocks (in seconds)\n";

@@ -82,6 +82,7 @@ private:
     void render();
     void loadTextures();
     void loadCustomCursor();
+    void applyCursorSetting();
     void renderGame();
     void renderExitConfirmation();
     void renderEndGameModal();         // Premium glassmorphic end-game popup
@@ -123,6 +124,10 @@ private:
 
     sf::RenderWindow window;
     sf::Cursor customCursor;
+    sf::Cursor systemCursor;
+    bool customCursorLoaded = false;
+    bool systemCursorLoaded = false;
+    bool usingCustomCursor = true;
     sf::Clock clock;
 
     ChessBoard board;

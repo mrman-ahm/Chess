@@ -39,6 +39,7 @@ public:
     const std::string& getBoardTileTheme()   const { return rows[1].current(); }
     const std::string& getBoardBg()          const { return rows[2].current(); }
     const std::string& getBoardPerspective() const { return rows[3].current(); }
+    const std::string& getCursorStyle()      const { return rows[4].current(); }
     void setSelection(int rowIdx, const std::string& val);
 
 private:
