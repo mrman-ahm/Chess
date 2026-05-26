@@ -1,0 +1,45 @@
+avatar and timer and a button for options that will be empty for now
+
+move history log
+
+faaah sounds
+
+zesty mode
+
+churail
+
+escapy quit button
+
+option to change backgrounds and pieces
+
+
+avatars to select from for players
+
+
+chess intro logo animation idea
+(flipaclip hand drawn animation into pawn piece then an image slide in and hadndrawn fade)
+
+
+
+make it a serviceable game with all .dll s and all externals included in the executable
+
+
+Windowed Mode	Toggle fullscreen ↔ windowed, resize support
+
+
+
+
+
+TEMP+++++++++++++++++++++++++++++++++++++++++++++++
+
+
+
+as you can see in this repository that i am trying to make a CHESS game
+what i desire from you is that i need you to look deeply into this (STRICTLY NOT CHAGNING ANY FILES)
+and read whatever i going on in here in detail to understand the context of everthing
+
+take all your time that you need i hhave no problems with that
+well ... after analyzing the code in detail i need you to brainstorm ideas
+start thinkin about things that would probve to be yseful for makeadjustement suggestions/// amintanecnce//
+ideas or any new innovative thing... or even if you think this feature shhould be added to make things more
+interesting fro the user. make a list of alll the things... from every perspective into making it a monetizable app

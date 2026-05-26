@@ -1,0 +1,16 @@
+# User Preferences
+menu_background=Midnight
+board_tile_theme=Minimalist
+board_background=Marble Slab
+board_perspective=Black
+
+# Player Clocks (in seconds)
+time_control=600
+increment_time=0
+delay_time=1
+
+# Player Statistics
+white_wins=5
+black_wins=0
+draws=1
+total_games=6
