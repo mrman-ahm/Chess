@@ -1,17 +1,26 @@
 # User Preferences
-menu_background=Midnight
-board_tile_theme=Minimalist
-board_background=Marble Slab
-board_perspective=Black
-cursor_style=Chess
+menu_preset=Preset 5
+board_tile_theme=Graphite
+board_background=Woodslab
+board_perspective=Auto
+cursor_style=C4
+fahh_mode=Off
+piece_mode=Set
+piece_set=Set 1
+piece_custom_pawn=Set 4
+piece_custom_knight=Set 4
+piece_custom_bishop=Set 4
+piece_custom_rook=Set 4
+piece_custom_queen=Set 4
+piece_custom_king=Set 4
 
 # Player Clocks (in seconds)
 time_control=600
 increment_time=0
-delay_time=1
+delay_time=0
 
 # Player Statistics
-white_wins=5
-black_wins=0
+white_wins=9
+black_wins=1
 draws=1
-total_games=6
+total_games=11

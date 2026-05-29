@@ -8,9 +8,25 @@
 //  Constructor
 // ─────────────────────────────────────────────
 Menu::Menu(sf::RenderWindow& win, BitmapFont& tf, BitmapFont& uf,
-           std::map<char, sf::Texture>& tex)
+           std::map<char, sf::Texture>& tex,
+           const std::string& backgroundPath,
+           const std::string& decorativeQueenPath,
+           bool showQueen,
+           bool showBoard,
+           sf::Color baseColor,
+           sf::Color activeColor,
+           sf::Color glowOuterColor,
+           sf::Color glowLineColor,
+           sf::Color titleTint)
     : window(win), titleFont(tf), uiFont(uf), textures(tex),
       particles(win.getSize(), 55),
+      showDecorativeQueen(showQueen),
+      showCheckerboard(showBoard),
+      buttonBaseColor(baseColor),
+      buttonActiveColor(activeColor),
+      buttonGlowOuterColor(glowOuterColor),
+      buttonGlowLineColor(glowLineColor),
+      titleColor(titleTint),
       W((float)win.getSize().x), H((float)win.getSize().y)
 {
     std::cout << "Menu::Menu body started" << std::endl;
@@ -18,16 +34,57 @@ Menu::Menu(sf::RenderWindow& win, BitmapFont& tf, BitmapFont& uf,
     titleY = H * 0.12f;
     dividerWidth = 0.0f;
     fadeAlpha = 255.0f;
+    loadBackground(backgroundPath);
+    loadDecorativeQueen(decorativeQueenPath);
+}
 
-    // Load background image
-    if (!bgTexture.loadFromFile("Sprites/background.jpg")) {
-        std::cerr << "Warning: Could not load Sprites/background.jpg\n";
+void Menu::loadBackground(const std::string& path) {
+    bgLoaded = false;
+    bgSprite = sf::Sprite();
+    if (!bgTexture.loadFromFile(path)) {
+        std::cerr << "Warning: Could not load " << path << "\n";
     } else {
         bgSprite.setTexture(bgTexture);
         float sx = W / (float)bgTexture.getSize().x;
         float sy = H / (float)bgTexture.getSize().y;
         bgSprite.setScale(sx, sy);
         bgLoaded = true;
+    }
+}
+
+void Menu::loadDecorativeQueen(const std::string& path) {
+    decorativeQueenLoaded = false;
+    if (!decorativeQueenTexture.loadFromFile(path)) {
+        std::cerr << "Warning: Could not load " << path << "\n";
+    } else {
+        decorativeQueenLoaded = true;
+    }
+}
+
+void Menu::setVisualConfig(const std::string& backgroundPath,
+                           const std::string& decorativeQueenPath,
+                           bool showQueen,
+                           bool showBoard,
+                           sf::Color baseColor,
+                           sf::Color activeColor,
+                           sf::Color glowOuterColor,
+                           sf::Color glowLineColor,
+                           sf::Color titleTint) {
+    showDecorativeQueen = showQueen;
+    showCheckerboard = showBoard;
+    buttonBaseColor = baseColor;
+    buttonActiveColor = activeColor;
+    buttonGlowOuterColor = glowOuterColor;
+    buttonGlowLineColor = glowLineColor;
+    titleColor = titleTint;
+    applyButtonColors();
+    loadBackground(backgroundPath);
+    loadDecorativeQueen(decorativeQueenPath);
+}
+
+void Menu::applyButtonColors() {
+    for (auto& button : buttons) {
+        button.setColors(buttonBaseColor, buttonActiveColor, buttonGlowOuterColor, buttonGlowLineColor);
     }
 }
 
@@ -43,7 +100,7 @@ void Menu::buildButtons() {
 
     // Left-third layout: buttons live at x = 28% of screen
     float bx = W * 0.28f;
-    float startY = H * 0.31f;
+    float startY = H * 0.335f;
     float stepY  = H * 0.082f;
 
     for (int i = 0; i < (int)labels.size(); ++i) {
@@ -52,7 +109,8 @@ void Menu::buildButtons() {
         btn.setText(labels[i]);
         btn.setBaseScale(0.36f);
         btn.setHoverScale(0.46f);
-        float subtleDown = (i >= 1) ? H * 0.014f : 0.f;
+        btn.setColors(buttonBaseColor, buttonActiveColor, buttonGlowOuterColor, buttonGlowLineColor);
+        float subtleDown = H * 0.014f;
         btn.setPosition(bx, startY + i * stepY + subtleDown);
         btn.setSelected(i == 0);
         buttons.push_back(btn);
@@ -65,7 +123,28 @@ void Menu::buildButtons() {
 // ─────────────────────────────────────────────
 //  Public Interface
 // ─────────────────────────────────────────────
-void Menu::startFadeIn() { fadeAlpha = 255.0f; }
+void Menu::startFadeIn() {
+    fadeAlpha = 255.0f;
+    welcomeSoundRequested = true;
+}
+
+bool Menu::consumeWelcomeSound() {
+    bool requested = welcomeSoundRequested;
+    welcomeSoundRequested = false;
+    return requested;
+}
+
+bool Menu::consumeChangeSound() {
+    bool requested = changeSoundRequested;
+    changeSoundRequested = false;
+    return requested;
+}
+
+bool Menu::consumeClickSound() {
+    bool requested = clickSoundRequested;
+    clickSoundRequested = false;
+    return requested;
+}
 
 void Menu::handleEvent(const sf::Event& event) {
     if (event.type == sf::Event::KeyPressed) {
@@ -74,17 +153,21 @@ void Menu::handleEvent(const sf::Event& event) {
             buttons[selectedIndex].setSelected(false);
             selectedIndex = (selectedIndex + (int)buttons.size() - 1) % (int)buttons.size();
             buttons[selectedIndex].setSelected(true);
+            changeSoundRequested = true;
         }
         if (event.key.code == sf::Keyboard::Down || event.key.code == sf::Keyboard::S) {
             buttons[selectedIndex].setSelected(false);
             selectedIndex = (selectedIndex + 1) % (int)buttons.size();
             buttons[selectedIndex].setSelected(true);
+            changeSoundRequested = true;
         }
         if (event.key.code == sf::Keyboard::Return || event.key.code == sf::Keyboard::Space) {
             pendingAction = buttonActions[selectedIndex];
+            clickSoundRequested = true;
         }
         if (event.key.code == sf::Keyboard::Escape) {
             pendingAction = MenuAction::Exit;
+            clickSoundRequested = true;
         }
     }
 
@@ -95,6 +178,7 @@ void Menu::handleEvent(const sf::Event& event) {
         for (int i = 0; i < (int)buttons.size(); ++i) {
             if (buttons[i].wasClicked(mp, true)) {
                 pendingAction = buttonActions[i];
+                clickSoundRequested = true;
             }
         }
     }
@@ -131,6 +215,7 @@ void Menu::update(float dt) {
                 buttons[selectedIndex].setSelected(false);
                 selectedIndex = i;
                 buttons[selectedIndex].setSelected(true);
+                changeSoundRequested = true;
             }
         }
     }
@@ -142,8 +227,12 @@ void Menu::update(float dt) {
 void Menu::draw() {
     drawBackground();
     particles.draw(window);
-    drawShadowPiece();
-    drawCheckerboardAccent();
+    if (showDecorativeQueen) {
+        drawShadowPiece();
+    }
+    if (showCheckerboard) {
+        drawCheckerboardAccent();
+    }
     drawTitle(0.0f);
     drawDivider();
 
@@ -203,16 +292,9 @@ void Menu::drawTitle(float /*dt*/) {
     titleFont.drawText(window, "CHESS", sf::Vector2f(tx + 3.0f, ty + 4.0f), scale, sf::Color(0, 0, 0, 90));
 
     // Main title pass
-    titleFont.drawText(window, "CHESS", sf::Vector2f(tx, ty), scale, sf::Color(220, 195, 120, 255));
+    titleFont.drawText(window, "CHESS", sf::Vector2f(tx, ty), scale, titleColor);
 
     // Subtitle — placed below the main title
-    float subtitleScale = 0.22f;
-    std::string subtitle = "THE ROYAL GAME";
-    float sw = uiFont.getTextWidth(subtitle, subtitleScale);
-    // Push the subtitle further down (approx 120 * scale) to clear the "CHESS" text
-    uiFont.drawText(window, subtitle,
-                    sf::Vector2f(W * 0.28f - sw / 2.0f, ty + 100.0f * scale),
-                    subtitleScale, sf::Color(160, 135, 70, 200));
 }
 
 void Menu::drawDivider() {
@@ -234,28 +316,16 @@ void Menu::drawDivider() {
 }
 
 void Menu::drawShadowPiece() {
-    // Massive ghost Queen on the right side
-    if (textures.count('Q') == 0 || textures.at('Q').getSize().y == 0) return;
+    if (!decorativeQueenLoaded || decorativeQueenTexture.getSize().y == 0) return;
 
-    sf::Sprite queen(textures.at('Q'));
+    sf::Sprite queen(decorativeQueenTexture);
     queen.setColor(sf::Color(255, 255, 255, 18));
-    float s = H / (float)textures.at('Q').getSize().y * 0.95f;
+    float s = H / (float)decorativeQueenTexture.getSize().y * 0.95f;
     queen.setScale(s, s);
-    float qw = textures.at('Q').getSize().x * s;
-    float qh = textures.at('Q').getSize().y * s;
+    float qw = decorativeQueenTexture.getSize().x * s;
+    float qh = decorativeQueenTexture.getSize().y * s;
     queen.setPosition(W * 0.68f - qw / 2.0f, H - qh + H * 0.05f);
     window.draw(queen);
-
-    // Ghost King
-    if (textures.count('k') == 0 || textures.at('k').getSize().y == 0) return;
-    sf::Sprite king(textures.at('k'));
-    king.setColor(sf::Color(255, 255, 255, 10));
-    float ks = H / (float)textures.at('k').getSize().y * 0.6f;
-    king.setScale(ks, ks);
-    float kw = textures.at('k').getSize().x * ks;
-    float kh = textures.at('k').getSize().y * ks;
-    king.setPosition(W * 0.88f - kw / 2.0f, H - kh + H * 0.12f);
-    window.draw(king);
 }
 
 void Menu::drawCheckerboardAccent() {

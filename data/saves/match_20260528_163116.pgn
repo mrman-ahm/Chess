@@ -1,0 +1,24 @@
+[Event "Casual Match"]
+[Site "Local Machine"]
+[Date "2026.05.28"]
+[Round "1"]
+[White "Player 1"]
+[Black "Stockfish"]
+[GameMode "AI"]
+[AIEngine "Stockfish"]
+[AIPlayer "Black"]
+[AISkillLevel "5"]
+[AISearchDepth "3"]
+[WhiteAvatar "0"]
+[BlackAvatar "0"]
+[Result "1/2-1/2"]
+[WhiteTime "538"]
+[BlackTime "590"]
+[TimeControl "600"]
+[IncrementTime "0"]
+[DelayTime "0"]
+[ReviewPly "6"]
+
+1. e2-e4 h7-h6
+2. e4-e5 g7-g5
+3. f2-f4 c7-c5

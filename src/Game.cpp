@@ -1,4 +1,5 @@
 #include "Game.hpp"
+#include "MenuPreset.hpp"
 #include "UIPrimitives.hpp"
 #include <iostream>
 #include <algorithm>
@@ -49,6 +50,52 @@ static bool loadCurFile(const std::string& path, sf::Cursor& cursor,
     const std::uint32_t imageSize = readU32LE(bytes, entry + 8);
     const std::uint32_t imageOffset = readU32LE(bytes, entry + 12);
     if (imageOffset + imageSize > bytes.size() || imageSize < 40) return false;
+
+    const bool pngEncoded =
+        imageSize >= 8 &&
+        bytes[imageOffset] == 0x89 &&
+        bytes[imageOffset + 1] == 0x50 &&
+        bytes[imageOffset + 2] == 0x4E &&
+        bytes[imageOffset + 3] == 0x47 &&
+        bytes[imageOffset + 4] == 0x0D &&
+        bytes[imageOffset + 5] == 0x0A &&
+        bytes[imageOffset + 6] == 0x1A &&
+        bytes[imageOffset + 7] == 0x0A;
+
+    if (pngEncoded) {
+        sf::Image image;
+        if (!image.loadFromMemory(bytes.data() + imageOffset, imageSize)) return false;
+
+        const sf::Vector2u size = image.getSize();
+        if (size.x == 0 || size.y == 0) return false;
+
+        if (scaleNumerator > 1 && scaleDenominator > 0) {
+            const unsigned int scaledWidth = size.x * scaleNumerator / scaleDenominator;
+            const unsigned int scaledHeight = size.y * scaleNumerator / scaleDenominator;
+            const sf::Uint8* srcPixels = image.getPixelsPtr();
+            std::vector<sf::Uint8> scaledPixels(scaledWidth * scaledHeight * 4, 0);
+
+            for (unsigned int y = 0; y < scaledHeight; ++y) {
+                for (unsigned int x = 0; x < scaledWidth; ++x) {
+                    const unsigned int srcX = x * size.x / scaledWidth;
+                    const unsigned int srcY = y * size.y / scaledHeight;
+                    const std::size_t src = (srcY * size.x + srcX) * 4;
+                    const std::size_t dst = (y * scaledWidth + x) * 4;
+                    scaledPixels[dst] = srcPixels[src];
+                    scaledPixels[dst + 1] = srcPixels[src + 1];
+                    scaledPixels[dst + 2] = srcPixels[src + 2];
+                    scaledPixels[dst + 3] = srcPixels[src + 3];
+                }
+            }
+
+            return cursor.loadFromPixels(scaledPixels.data(),
+                                         {scaledWidth, scaledHeight},
+                                         {hotspotX * scaleNumerator / scaleDenominator,
+                                          hotspotY * scaleNumerator / scaleDenominator});
+        }
+
+        return cursor.loadFromPixels(image.getPixelsPtr(), size, {hotspotX, hotspotY});
+    }
 
     const std::size_t dib = imageOffset;
     const std::uint32_t headerSize = readU32LE(bytes, dib);
@@ -179,58 +226,119 @@ static int getDepthForAISkill(int skillLevel) {
     return std::clamp(1 + skillLevel / 2, 1, 11);
 }
 
+static std::string lowerAscii(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+        return (char)std::tolower(ch);
+    });
+    return value;
+}
+
+static bool isTruthyTagValue(const std::string& value) {
+    std::string lowered = lowerAscii(value);
+    return lowered == "1" || lowered == "true" || lowered == "yes" || lowered == "ai" ||
+           lowered == "stockfish" || lowered == "vs ai";
+}
+
+static bool isStockfishName(const std::string& name) {
+    return lowerAscii(name).find("stockfish") != std::string::npos;
+}
+
+static float fitTextureScale(const sf::Texture& texture, float targetSize) {
+    sf::Vector2u size = texture.getSize();
+    float largest = (float)std::max(size.x, size.y);
+    return largest > 0.f ? targetSize / largest : 1.f;
+}
+
+struct BoardTilePalette {
+    sf::Color light;
+    sf::Color dark;
+    sf::Color highlight;
+};
+
+static BoardTilePalette boardTilePaletteForTheme(const std::string& theme) {
+    if (theme == "Wood")          return {sf::Color(232, 195, 139), sf::Color(131, 82, 48),  sf::Color(214, 170, 70)};
+    if (theme == "Marble")        return {sf::Color(232, 232, 225), sf::Color(92, 107, 119), sf::Color(120, 170, 190)};
+    if (theme == "Ice")           return {sf::Color(220, 240, 242), sf::Color(91, 154, 171), sf::Color(132, 209, 222)};
+    if (theme == "Minimalist")    return {sf::Color(226, 226, 222), sf::Color(98, 102, 104), sf::Color(170, 170, 105)};
+    if (theme == "Emerald")       return {sf::Color(235, 235, 210), sf::Color(68, 142, 94),  sf::Color(196, 210, 80)};
+    if (theme == "Slate")         return {sf::Color(205, 214, 217), sf::Color(74, 86, 98),   sf::Color(198, 188, 102)};
+    if (theme == "Royal")         return {sf::Color(232, 222, 184), sf::Color(86, 75, 145),  sf::Color(210, 185, 90)};
+    if (theme == "Rosewood")      return {sf::Color(238, 207, 195), sf::Color(145, 72, 78),  sf::Color(215, 146, 86)};
+    if (theme == "Graphite")      return {sf::Color(190, 194, 198), sf::Color(48, 52, 58),   sf::Color(190, 160, 70)};
+    if (theme == "Tournament")    return {sf::Color(238, 238, 210), sf::Color(118, 150, 86), sf::Color(246, 246, 105)};
+    if (theme == "High Contrast") return {sf::Color(245, 245, 245), sf::Color(55, 55, 55),   sf::Color(230, 190, 30)};
+    return {sf::Color(240, 217, 181), sf::Color(181, 136, 99), sf::Color(186, 202, 68)};
+}
+
 Game::Game()
     : window(sf::VideoMode::getDesktopMode(), "Chess — The Royal Game",
              sf::Style::Fullscreen)
 {
     window.setFramerateLimit(60);
     systemCursorLoaded = systemCursor.loadFromSystem(sf::Cursor::Arrow);
-    loadCustomCursor();
-    loadTextures();
 
-    if (!blueFont.loadFromFile("Sprites/Bluefont.fnt", "Sprites/Bluefont.png"))
+    if (!blueFont.loadFromFile("Sprites/Fonts/Bluefont.fnt", "Sprites/Fonts/Bluefont.png"))
         std::cerr << "Failed to load Bluefont\n";
 
-    if (!stylishFont.loadFromFile("Sprites/BlackStylishfont.fnt", "Sprites/BlackStylishfont.png"))
-        std::cerr << "Failed to load BlackStylishfont\n";
+    if (!stylishFont.loadFromFile("Sprites/Fonts/GrayStylishfont.fnt", "Sprites/Fonts/GrayStylishfont.png"))
+        std::cerr << "Failed to load GrayStylishfont\n";
 
-    if (!whiteFont.loadFromFile("Sprites/whitefont.fnt", "Sprites/whitefont.png"))
+    if (!whiteFont.loadFromFile("Sprites/Fonts/whitefont.fnt", "Sprites/Fonts/whitefont.png"))
         std::cerr << "Failed to load whitefont\n";
 
-    menu = new Menu(window, stylishFont, blueFont, textures);
-    menu->startFadeIn();
     setupScreen    = new PlayerSetupScreen(window, stylishFont, whiteFont);
     settingsScreen = new SettingsScreen(window, stylishFont, whiteFont);
+    soundManager.loadMoveSounds();
 
     ensureDirectoriesExist();
     loadConfig();
+    soundManager.setFahhMode(settingsScreen && settingsScreen->getFahhMode());
+    applyMenuPreset();
+    preloadGameBackgrounds();
+    loadTextures();
+    const MenuPresetConfig& menuPreset = findMenuPreset(loadedMenuPreset);
+    menu = new Menu(window, menuTitleFont, menuButtonFont, textures,
+                    menuPreset.backgroundPath,
+                    menuPreset.decorativeQueenPath,
+                    menuPreset.showDecorativeQueen,
+                    menuPreset.showCheckerboard,
+                    menuPreset.buttonBaseColor,
+                    menuPreset.buttonActiveColor,
+                    menuPreset.buttonGlowOuterColor,
+                    menuPreset.buttonGlowLineColor,
+                    menuPreset.titleColor);
+    menu->startFadeIn();
     applyCursorSetting();
 }
 
 void Game::loadCustomCursor() {
-    std::string cursorPath = "Sprites/Cursor/beyaz fil.cur";
+    customCursorLoaded = false;
+    loadedCursorStyle = settingsScreen ? settingsScreen->getCursorStyle() : "System";
 
-    std::ifstream cursorSet("Sprites/Cursor/chess.crs");
-    std::string line;
-    while (std::getline(cursorSet, line)) {
-        const std::string prefix = "Path=";
-        if (line.rfind(prefix, 0) == 0 && line.size() > prefix.size()) {
-            if (!line.empty() && line.back() == '\r') line.pop_back();
-            cursorPath = "Sprites/Cursor/" + line.substr(prefix.size());
-            break;
-        }
+    if (!settingsScreen || loadedCursorStyle == "System") {
+        return;
     }
 
-    customCursorLoaded = loadCurFile(cursorPath, customCursor, 3, 2);
-    if (customCursorLoaded) {
-        applyCursorSetting();
-    } else {
+    std::string cursorPath = settingsScreen->getCursorPath();
+    if (cursorPath.empty()) {
+        return;
+    }
+
+    if (!loadCurFile(cursorPath, customCursor, 3, 2)) {
         std::cerr << "Failed to load custom cursor: " << cursorPath << "\n";
+        return;
     }
+
+    customCursorLoaded = true;
 }
 
 void Game::applyCursorSetting() {
-    usingCustomCursor = !settingsScreen || settingsScreen->getCursorStyle() == "Chess";
+    const std::string style = settingsScreen ? settingsScreen->getCursorStyle() : "System";
+    if (style != loadedCursorStyle) {
+        loadCustomCursor();
+    }
+
+    usingCustomCursor = style != "System" && customCursorLoaded;
 
     if (usingCustomCursor && customCursorLoaded) {
         window.setMouseCursor(customCursor);
@@ -239,30 +347,102 @@ void Game::applyCursorSetting() {
     }
 }
 
-void Game::loadTextures() {
-    std::map<char, std::string> files = {
-        {'p', "black-pawn"},    {'n', "black-knight"}, {'b', "black-bishop"},
-        {'r', "black-rook"},    {'q', "black-queen"},
-        {'k', "30aedb515c31b0cc22a732c61607ed6c1c19a4ba-removebg-preview"},
-        {'P', "white-pawn"},    {'N', "white-knight"}, {'B', "white-bishop"},
-        {'R', "white-rook"},    {'Q', "white-queen"},
-        {'K', "maxresdefault-removebg-preview"}
-    };
-    for (auto& [c, name] : files) {
-        if (!textures[c].loadFromFile("Sprites/" + name + ".png"))
-            std::cerr << "Failed: Sprites/" << name << ".png\n";
+void Game::applyMenuPreset() {
+    std::string presetName = settingsScreen ? settingsScreen->getMenuPreset() : "Preset 2";
+    const MenuPresetConfig& preset = findMenuPreset(presetName);
+
+    bool titleLoaded = menuTitleFont.loadFromFile(preset.titleFontFnt, preset.titleFontPng);
+    bool buttonLoaded = menuButtonFont.loadFromFile(preset.buttonFontFnt, preset.buttonFontPng);
+
+    if (!titleLoaded) {
+        std::cerr << "Failed to load menu title font for " << preset.name << "\n";
+    }
+    if (!buttonLoaded) {
+        std::cerr << "Failed to load menu button font for " << preset.name << "\n";
     }
 
-    if (!whiteTurnTex.loadFromFile("Sprites/whiteturn.png"))
-        std::cerr << "Failed: Sprites/whiteturn.png\n";
-    if (!blackTurnTex.loadFromFile("Sprites/blackturn.png"))
-        std::cerr << "Failed: Sprites/blackturn.png\n";
-    
-    if (!gameBgTexture.loadFromFile("Sprites/texure-bg.jpg")) {
-        std::cerr << "Failed: Sprites/texure-bg.jpg\n";
-    } else {
-        gameBgSprite.setTexture(gameBgTexture);
+    loadedMenuPreset = preset.name;
+    if (menu) {
+        menu->setVisualConfig(preset.backgroundPath,
+                              preset.decorativeQueenPath,
+                              preset.showDecorativeQueen,
+                              preset.showCheckerboard,
+                              preset.buttonBaseColor,
+                              preset.buttonActiveColor,
+                              preset.buttonGlowOuterColor,
+                              preset.buttonGlowLineColor,
+                              preset.titleColor);
+    }
+}
+
+void Game::loadTextures() {
+    textures.clear();
+
+    std::map<char, std::string> fallbackFiles = {
+        {'p', "Sprites/Pieces/Set 1/B-Pawn.png"},    {'n', "Sprites/Pieces/Set 1/B-Knight.png"}, {'b', "Sprites/Pieces/Set 1/B-Bishop.png"},
+        {'r', "Sprites/Pieces/Set 1/B-Rook.png"},    {'q', "Sprites/Pieces/Set 1/B-Queen.png"},
+        {'k', "Sprites/Pieces/Set 1/B-King.png"},
+        {'P', "Sprites/Pieces/Set 1/W-Pawn.png"},    {'N', "Sprites/Pieces/Set 1/W-Knight.png"}, {'B', "Sprites/Pieces/Set 1/W-Bishop.png"},
+        {'R', "Sprites/Pieces/Set 1/W-Rook.png"},    {'Q', "Sprites/Pieces/Set 1/W-Queen.png"},
+        {'K', "Sprites/Pieces/Set 1/W-King.png"}
+    };
+
+    for (auto& [c, fallbackPath] : fallbackFiles) {
+        std::string preferredPath = settingsScreen ? settingsScreen->getPieceTexturePath(c) : "";
+        bool loaded = false;
+
+        if (!preferredPath.empty()) {
+            loaded = textures[c].loadFromFile(preferredPath);
+            if (!loaded) {
+                std::cerr << "Failed: " << preferredPath << "\n";
+            }
+        }
+
+        if (!loaded && !textures[c].loadFromFile(fallbackPath)) {
+            std::cerr << "Failed: " << fallbackPath << "\n";
+        }
+    }
+
+    if (!whiteTurnTex.loadFromFile("Sprites/misc/whiteturn.png"))
+        std::cerr << "Failed: Sprites/misc/whiteturn.png\n";
+    if (!blackTurnTex.loadFromFile("Sprites/misc/blackturn.png"))
+        std::cerr << "Failed: Sprites/misc/blackturn.png\n";
+
+    loadGameBackground();
+}
+
+void Game::preloadGameBackgrounds() {
+    gameBgTextures.clear();
+    if (!settingsScreen) return;
+
+    for (const auto& [label, path] : settingsScreen->getBoardBackgroundFiles()) {
+        sf::Texture texture;
+        if (texture.loadFromFile(path)) {
+            gameBgTextures[label] = texture;
+        } else {
+            std::cerr << "Failed: " << path << "\n";
+        }
+    }
+}
+
+void Game::loadGameBackground() {
+    loadedGameBgSetting = settingsScreen ? settingsScreen->getBoardBg() : "Wood";
+    gameBgLoaded = false;
+
+    std::string bgPath = settingsScreen ? settingsScreen->getBoardBgPath() : "Sprites/Game bg/wood.jpg";
+    if (bgPath.empty() || loadedGameBgSetting == "Plain") {
+        return;
+    }
+
+    auto cached = gameBgTextures.find(loadedGameBgSetting);
+    if (cached != gameBgTextures.end()) {
+        gameBgSprite.setTexture(cached->second, true);
         gameBgLoaded = true;
+    } else if (gameBgTexture.loadFromFile(bgPath)) {
+        gameBgSprite.setTexture(gameBgTexture, true);
+        gameBgLoaded = true;
+    } else {
+        std::cerr << "Failed: " << bgPath << "\n";
     }
 }
 
@@ -348,6 +528,13 @@ void Game::processEvents() {
                         else promo = board.isWhiteTurn ? 'N' : 'n';
                         
                         board.promotePiece(promotionCoord.x, promotionCoord.y, promo);
+                        if (hasPendingPromotionSound) {
+                            MoveSoundInfo finalSound = getDropSoundInfo();
+                            pendingPromotionSound.check = finalSound.check;
+                            pendingPromotionSound.checkmate = finalSound.checkmate;
+                            soundManager.playMoveResolution(pendingPromotionSound);
+                            hasPendingPromotionSound = false;
+                        }
                         
                         // Promotion complete: save timeline!
                         isTimerRunning = true;
@@ -402,7 +589,8 @@ void Game::processEvents() {
             // animate=true  → piece slides (click-to-click)
             // animate=false → instant snap (drag-and-drop)
             auto commitMove = [&](int fromR, int fromC, int toR, int toC,
-                                  const std::string& lan, char movingPiece, bool animate) {
+                                  const std::string& lan, char movingPiece,
+                                  MoveSoundInfo soundInfo, bool animate) {
                 // Slide animation (click-to-click only)
                 if (animate) {
                     animPiece    = movingPiece;
@@ -428,6 +616,11 @@ void Game::processEvents() {
                     blackTime += incrementTime;
                 }
                 activeDelayRemaining = delayTime;
+
+                MoveSoundInfo finalSound = getDropSoundInfo();
+                soundInfo.check = finalSound.check;
+                soundInfo.checkmate = finalSound.checkmate;
+                queueOrPlayMoveSound(soundInfo, animate);
 
                 appendMoveToTimeline(lan, makeUCIMove(fromR, fromC, toR, toC));
                 requestAIMoveIfNeeded();
@@ -585,6 +778,7 @@ void Game::processEvents() {
                                         selectedPocketPiece = '\0';
                                         isDragging = false;
                                     } else {
+                                        soundManager.playPickup();
                                         selectedPocketPiece = p;
                                         isDragging = true;
                                         dragCurrentPos = mp;
@@ -610,6 +804,7 @@ void Game::processEvents() {
                                 if (board.isValidDrop(selectedPocketPiece, row, col)) {
                                     std::string dropNotation = std::string(1, std::toupper(selectedPocketPiece)) + "@" + (char)(col + 'a') + std::to_string(8 - row);
                                     board.dropPiece(selectedPocketPiece, row, col);
+                                    soundManager.playMoveResolution(getDropSoundInfo());
                                     
                                     isTimerRunning = true;
                                     if (!board.isWhiteTurn) {
@@ -647,8 +842,11 @@ void Game::processEvents() {
                                         int fromR = selectedSquare.x, fromC = selectedSquare.y;
                                         char movingPiece = board.board[fromR][fromC];
                                         std::string lan  = board.getLANMove(fromR, fromC, row, col);
+                                        MoveSoundInfo soundInfo = getMoveSoundInfo(fromR, fromC, row, col);
                                         if (board.movePiece(fromR, fromC, row, col)) {
                                             // Pawn promotion
+                                            pendingPromotionSound = soundInfo;
+                                            hasPendingPromotionSound = true;
                                             tempPromoMovePrefix = lan;
                                             lastFromCoord = { fromR, fromC };
                                             lastMoveFrom = { fromR, fromC };
@@ -656,12 +854,13 @@ void Game::processEvents() {
                                             currentState = State::PROMOTING;
                                             promotionCoord = { row, col };
                                         } else {
-                                            commitMove(fromR, fromC, row, col, lan, movingPiece, true); // animate
+                                            commitMove(fromR, fromC, row, col, lan, movingPiece, soundInfo, true); // animate
                                         }
                                         selectedSquare = { -1, -1 };
                                         isDragging     = false;
                                     } else if (isOwn) {
                                         // Reselect a different own piece
+                                        soundManager.playPickup();
                                         selectedSquare   = { row, col };
                                         dragSourceSquare = { row, col };
                                         isDragging       = true;
@@ -674,6 +873,7 @@ void Game::processEvents() {
                                 } else {
                                     // — First selection —
                                     if (isOwn) {
+                                        soundManager.playPickup();
                                         selectedSquare   = { row, col };
                                         dragSourceSquare = { row, col };
                                         isDragging       = true;
@@ -739,6 +939,7 @@ void Game::processEvents() {
                         std::string dropNotation = std::string(1, std::toupper(selectedPocketPiece)) + "@" + (char)(col + 'a') + std::to_string(8 - row);
                         
                         board.dropPiece(selectedPocketPiece, row, col);
+                        soundManager.playMoveResolution(getDropSoundInfo());
                         
                         isTimerRunning = true;
                         if (!board.isWhiteTurn) {
@@ -781,8 +982,11 @@ void Game::processEvents() {
                         int fromR = dragSourceSquare.x, fromC = dragSourceSquare.y;
                         char movingPiece = board.board[fromR][fromC];
                         std::string lan  = board.getLANMove(fromR, fromC, row, col);
+                        MoveSoundInfo soundInfo = getMoveSoundInfo(fromR, fromC, row, col);
                         if (board.movePiece(fromR, fromC, row, col)) {
                             // Pawn promotion
+                            pendingPromotionSound = soundInfo;
+                            hasPendingPromotionSound = true;
                             tempPromoMovePrefix = lan;
                             lastFromCoord = { fromR, fromC };
                             lastMoveFrom = { fromR, fromC };
@@ -790,7 +994,7 @@ void Game::processEvents() {
                             currentState = State::PROMOTING;
                             promotionCoord = { row, col };
                         } else {
-                            commitMove(fromR, fromC, row, col, lan, movingPiece, false); // no animate for drag
+                            commitMove(fromR, fromC, row, col, lan, movingPiece, soundInfo, false); // no animate for drag
                         }
                         selectedSquare = { -1, -1 };
                     } else if (!droppedOnSelf) {
@@ -816,6 +1020,7 @@ void Game::processEvents() {
 
 void Game::update(float dt) {
     uiPulseTime += dt;
+    soundManager.update();
 
     // Advance slide animation
     if (isAnimating) {
@@ -823,6 +1028,7 @@ void Game::update(float dt) {
         if (animProgress >= 1.f) {
             animProgress = 1.f;
             isAnimating  = false;
+            playPendingAnimationSound();
         }
     }
 
@@ -854,6 +1060,9 @@ void Game::update(float dt) {
 
     if (currentState == State::MENU) {
         menu->update(dt);
+        if (menu->consumeWelcomeSound()) soundManager.playMenuWelcome();
+        if (menu->consumeChangeSound()) soundManager.playMenuChange();
+        if (menu->consumeClickSound()) soundManager.playMenuClick();
         MenuAction action = menu->getAction();
         if (action != MenuAction::None) {
             menu->clearAction();
@@ -957,7 +1166,19 @@ void Game::update(float dt) {
         }
     } else if (currentState == State::SETTINGS) {
         settingsScreen->update(dt);
+        if (settingsScreen->consumeChangeSound()) soundManager.playMenuChange();
+        if (settingsScreen->consumeClickSound()) soundManager.playMenuClick();
         applyCursorSetting();
+        soundManager.setFahhMode(settingsScreen->getFahhMode());
+        if (loadedMenuPreset != settingsScreen->getMenuPreset()) {
+            applyMenuPreset();
+        }
+        if (loadedGameBgSetting != settingsScreen->getBoardBg()) {
+            loadGameBackground();
+        }
+        if (settingsScreen->consumePieceSpritesChanged()) {
+            loadTextures();
+        }
         if (settingsScreen->getAction() == SettingsAction::Back) {
             settingsScreen->clearAction();
             saveConfig();
@@ -1146,7 +1367,7 @@ void Game::render() {
                                      hovered ? 2.0f : 1.4f);
 
                 sf::Sprite s(textures[pieces[i]]);
-                float sScale = (cardW * 0.7f) / textures[pieces[i]].getSize().x;
+                float sScale = fitTextureScale(textures[pieces[i]], cardW * 0.7f);
                 s.setScale(sScale, sScale);
                 s.setOrigin(textures[pieces[i]].getSize().x / 2.0f, textures[pieces[i]].getSize().y / 2.0f);
                 s.setPosition(cardRect.left + cardW/2.0f, cardRect.top + cardW/2.0f - 10.0f);
@@ -1253,14 +1474,18 @@ void Game::renderGame() {
     float boardSize = 8.0f * TILE;
     float offsetX = (windowW - boardSize) / 2.0f;
     float offsetY = (windowH - boardSize) / 2.0f;
+    BoardTilePalette tilePalette = boardTilePaletteForTheme(
+        settingsScreen ? settingsScreen->getBoardTileTheme() : "Classic");
 
     // Draw background image
     if (gameBgLoaded) {
-        float sx = windowW / gameBgTexture.getSize().x;
-        float sy = windowH / gameBgTexture.getSize().y;
-        // Keep aspect ratio by using max scale, or just stretch if it's okay. Stretching is usually fine for subtle BGs.
-        gameBgSprite.setScale(sx, sy);
-        window.draw(gameBgSprite);
+        const sf::Texture* bgTexture = gameBgSprite.getTexture();
+        if (bgTexture && bgTexture->getSize().x > 0 && bgTexture->getSize().y > 0) {
+            float sx = windowW / bgTexture->getSize().x;
+            float sy = windowH / bgTexture->getSize().y;
+            gameBgSprite.setScale(sx, sy);
+            window.draw(gameBgSprite);
+        }
 
         // Subtle dark overlay to ensure readability and minimalist calm vibe
         sf::RectangleShape bgOverlay(sf::Vector2f(windowW, windowH));
@@ -1327,9 +1552,9 @@ void Game::renderGame() {
             sf::RectangleShape sq(sf::Vector2f((float)TILE, (float)TILE));
             sq.setPosition(drawX, drawY);
             if (selectedSquare.x == row && selectedSquare.y == col)
-                sq.setFillColor(highlightColor);
+                sq.setFillColor(tilePalette.highlight);
             else
-                sq.setFillColor((row + col) % 2 == 0 ? lightColor : darkColor);
+                sq.setFillColor((row + col) % 2 == 0 ? tilePalette.light : tilePalette.dark);
             window.draw(sq);
 
             // ── Last-move highlight (olive-yellow glow) ─────────────────
@@ -1339,7 +1564,7 @@ void Game::renderGame() {
             if (isLastMove && selectedSquare.x != row && selectedSquare.y != col) {
                 sf::RectangleShape lm(sf::Vector2f((float)TILE, (float)TILE));
                 lm.setPosition(drawX, drawY);
-                lm.setFillColor(sf::Color(highlightColor.r, highlightColor.g, highlightColor.b, 150));
+                lm.setFillColor(sf::Color(tilePalette.highlight.r, tilePalette.highlight.g, tilePalette.highlight.b, 150));
                 window.draw(lm);
             }
 
@@ -1390,9 +1615,7 @@ void Game::renderGame() {
 
             if (piece != '.' && !isFlyingPiece) {
                 sf::Sprite sprite(textures[piece]);
-                float scale = (float)TILE / textures[piece].getSize().x * 0.8f;
-                if (piece == 'k') scale *= 1.5f;
-                if (piece == 'K') scale *= 2.0f;
+                float scale = fitTextureScale(textures[piece], TILE * 0.82f);
                 sprite.setScale(scale, scale);
                 sprite.setOrigin(textures[piece].getSize().x / 2.0f,
                                  textures[piece].getSize().y / 2.0f);
@@ -1427,9 +1650,7 @@ void Game::renderGame() {
 
         if (floatPiece != '.' && textures.count(floatPiece)) {
             sf::Sprite sp(textures[floatPiece]);
-            float baseScale = (float)TILE / textures[floatPiece].getSize().x * 0.8f;
-            if (floatPiece == 'k') baseScale *= 1.5f;
-            if (floatPiece == 'K') baseScale *= 2.0f;
+            float baseScale = fitTextureScale(textures[floatPiece], TILE * 0.82f);
             float sc = baseScale * floatScaleMult;
             sp.setScale(sc, sc);
             sp.setOrigin(textures[floatPiece].getSize().x / 2.0f,
@@ -1457,9 +1678,9 @@ void Game::renderGame() {
         });
 
         float curX = x;
-        float capScale = 0.4f;
         for (char p : sorted) {
             sf::Sprite s(textures[p]);
+            float capScale = fitTextureScale(textures[p], 30.f);
             s.setScale(capScale, capScale);
             s.setPosition(curX, y);
             window.draw(s);
@@ -1512,7 +1733,7 @@ void Game::renderGame() {
                 
                 if (textures.count(p)) {
                     sf::Sprite sp(textures[p]);
-                    float spScale = (rect.width * 0.75f) / textures[p].getSize().x;
+                    float spScale = fitTextureScale(textures[p], rect.width * 0.75f);
                     sp.setScale(spScale, spScale);
                     sp.setOrigin(textures[p].getSize().x / 2.f, textures[p].getSize().y / 2.f);
                     sp.setPosition(rect.left + rect.width / 2.f, rect.top + rect.height / 2.f);
@@ -2020,19 +2241,42 @@ void Game::loadConfig() {
             try { statDraws = std::stoi(val); } catch (...) {}
         } else if (key == "total_games") {
             try { statTotalGames = std::stoi(val); } catch (...) {}
-        } else if (key == "menu_background" || key == "board_tile_theme" || key == "board_background" ||
-                   key == "board_perspective" || key == "cursor_style") {
+        } else if (key == "menu_preset" || key == "menu_background" || key == "board_tile_theme" || key == "board_background" ||
+                   key == "board_perspective" || key == "cursor_style" || key == "fahh_mode") {
             if (settingsScreen) {
                 int rowIdx = -1;
-                if (key == "menu_background") rowIdx = 0;
+                if (key == "menu_preset") rowIdx = 0;
+                else if (key == "menu_background" && val.rfind("Preset ", 0) == 0) rowIdx = 0;
                 else if (key == "board_tile_theme") rowIdx = 1;
                 else if (key == "board_background") rowIdx = 2;
                 else if (key == "board_perspective") rowIdx = 3;
                 else if (key == "cursor_style") rowIdx = 4;
+                else if (key == "fahh_mode") rowIdx = 5;
                 if (rowIdx != -1) {
-                    settingsScreen->setSelection(rowIdx, val);
+                    if (key == "fahh_mode") {
+                        std::string lowered = lowerAscii(val);
+                        settingsScreen->setSelection(rowIdx, (lowered == "1" || lowered == "true" || lowered == "on" || lowered == "yes") ? "On" : "Off");
+                    } else {
+                        settingsScreen->setSelection(rowIdx, val);
+                    }
                 }
             }
+        } else if (key == "piece_mode") {
+            if (settingsScreen) settingsScreen->setPieceMode(val);
+        } else if (key == "piece_set") {
+            if (settingsScreen) settingsScreen->setPieceSetName(val);
+        } else if (key == "piece_custom_pawn") {
+            if (settingsScreen) settingsScreen->setCustomPieceSetName('P', val);
+        } else if (key == "piece_custom_knight") {
+            if (settingsScreen) settingsScreen->setCustomPieceSetName('N', val);
+        } else if (key == "piece_custom_bishop") {
+            if (settingsScreen) settingsScreen->setCustomPieceSetName('B', val);
+        } else if (key == "piece_custom_rook") {
+            if (settingsScreen) settingsScreen->setCustomPieceSetName('R', val);
+        } else if (key == "piece_custom_queen") {
+            if (settingsScreen) settingsScreen->setCustomPieceSetName('Q', val);
+        } else if (key == "piece_custom_king") {
+            if (settingsScreen) settingsScreen->setCustomPieceSetName('K', val);
         }
     }
 }
@@ -2043,17 +2287,29 @@ void Game::saveConfig() {
     
     file << "# User Preferences\n";
     if (settingsScreen) {
-        file << "menu_background=" << settingsScreen->getMenuBg() << "\n";
+        file << "menu_preset=" << settingsScreen->getMenuPreset() << "\n";
         file << "board_tile_theme=" << settingsScreen->getBoardTileTheme() << "\n";
         file << "board_background=" << settingsScreen->getBoardBg() << "\n";
         file << "board_perspective=" << settingsScreen->getBoardPerspective() << "\n";
         file << "cursor_style=" << settingsScreen->getCursorStyle() << "\n";
+        file << "fahh_mode=" << (settingsScreen->getFahhMode() ? "On" : "Off") << "\n";
+        file << "piece_mode=" << settingsScreen->getPieceMode() << "\n";
+        file << "piece_set=" << settingsScreen->getPieceSetName() << "\n";
+        file << "piece_custom_pawn=" << settingsScreen->getCustomPieceSetName('P') << "\n";
+        file << "piece_custom_knight=" << settingsScreen->getCustomPieceSetName('N') << "\n";
+        file << "piece_custom_bishop=" << settingsScreen->getCustomPieceSetName('B') << "\n";
+        file << "piece_custom_rook=" << settingsScreen->getCustomPieceSetName('R') << "\n";
+        file << "piece_custom_queen=" << settingsScreen->getCustomPieceSetName('Q') << "\n";
+        file << "piece_custom_king=" << settingsScreen->getCustomPieceSetName('K') << "\n";
     } else {
-        file << "menu_background=Default\n";
+        file << "menu_preset=Preset 2\n";
         file << "board_tile_theme=Classic\n";
         file << "board_background=Texture\n";
         file << "board_perspective=White\n";
         file << "cursor_style=Chess\n";
+        file << "fahh_mode=Off\n";
+        file << "piece_mode=Set\n";
+        file << "piece_set=\n";
     }
     
     file << "\n# Player Clocks (in seconds)\n";
@@ -2122,6 +2378,13 @@ std::string Game::generatePGNContent(int limit) {
     ss << "[Round \"1\"]\n";
     ss << "[White \"" << player1Name << "\"]\n";
     ss << "[Black \"" << player2Name << "\"]\n";
+    ss << "[GameMode \"" << (isVsAI ? "AI" : "Local") << "\"]\n";
+    if (isVsAI) {
+        ss << "[AIEngine \"Stockfish\"]\n";
+        ss << "[AIPlayer \"" << (aiPlaysWhite ? "White" : "Black") << "\"]\n";
+        ss << "[AISkillLevel \"" << aiSkillLevel << "\"]\n";
+        ss << "[AISearchDepth \"" << aiSearchDepth << "\"]\n";
+    }
     
     int whiteAv = setupScreen ? 0 : 0;
     int blackAv = setupScreen ? 0 : 0;
@@ -2265,6 +2528,60 @@ std::string Game::makeUCIMove(int fromRow, int fromCol, int toRow, int toCol, ch
     return move;
 }
 
+MoveSoundInfo Game::getMoveSoundInfo(int fromRow, int fromCol, int toRow, int toCol) const {
+    MoveSoundInfo info;
+    if (fromRow < 0 || fromRow >= 8 || fromCol < 0 || fromCol >= 8 ||
+        toRow < 0 || toRow >= 8 || toCol < 0 || toCol >= 8) {
+        return info;
+    }
+
+    char movingPiece = board.board[fromRow][fromCol];
+    char target = board.board[toRow][toCol];
+
+    bool isCastling = false;
+    if (std::tolower((unsigned char)movingPiece) == 'k') {
+        if (std::abs(toCol - fromCol) == 2) {
+            isCastling = true;
+        } else if ((toCol == board.initialRookLCol || toCol == board.initialRookRCol) &&
+                   std::tolower((unsigned char)target) == 'r') {
+            bool movingWhite = std::isupper((unsigned char)movingPiece);
+            bool targetWhite = std::isupper((unsigned char)target);
+            isCastling = movingWhite == targetWhite;
+        }
+    }
+
+    char capturedPiece = isCastling ? '.' : target;
+    if (std::tolower((unsigned char)movingPiece) == 'p' && fromCol != toCol && target == '.') {
+        capturedPiece = board.board[fromRow][toCol];
+    }
+
+    info.capture = capturedPiece != '.';
+    info.rookCaptured = std::tolower((unsigned char)capturedPiece) == 'r';
+    return info;
+}
+
+MoveSoundInfo Game::getDropSoundInfo() const {
+    MoveSoundInfo info;
+    info.check = board.isKingInCheck(board.isWhiteTurn);
+    info.checkmate = board.isCheckmate(board.isWhiteTurn);
+    return info;
+}
+
+void Game::queueOrPlayMoveSound(const MoveSoundInfo& info, bool afterAnimation) {
+    if (afterAnimation) {
+        pendingAnimationSound = info;
+        hasPendingAnimationSound = true;
+    } else {
+        soundManager.playMoveResolution(info);
+    }
+}
+
+void Game::playPendingAnimationSound() {
+    if (!hasPendingAnimationSound) return;
+    soundManager.playMoveResolution(pendingAnimationSound);
+    hasPendingAnimationSound = false;
+}
+
 bool Game::isHumanTurn() const {
     if (currentMoveIndex < (int)moveList.size()) return false;
     if (!isVsAI) return true;
@@ -2398,6 +2715,7 @@ bool Game::applyAIMove(const std::string& uciMove) {
 
     char movingPiece = board.board[fromRow][fromCol];
     std::string lan = board.getLANMove(fromRow, fromCol, toRow, toCol, promoChar);
+    MoveSoundInfo soundInfo = getMoveSoundInfo(fromRow, fromCol, toRow, toCol);
 
     bool needsPromotion = board.movePiece(fromRow, fromCol, toRow, toCol);
     if (needsPromotion) {
@@ -2406,6 +2724,9 @@ bool Game::applyAIMove(const std::string& uciMove) {
                                       : (char)std::tolower((unsigned char)promoteTo);
         board.promotePiece(toRow, toCol, promoteTo);
     }
+    MoveSoundInfo finalSound = getDropSoundInfo();
+    soundInfo.check = finalSound.check;
+    soundInfo.checkmate = finalSound.checkmate;
 
     lastMoveFrom = { fromRow, fromCol };
     lastMoveTo = { toRow, toCol };
@@ -2423,6 +2744,7 @@ bool Game::applyAIMove(const std::string& uciMove) {
     }
     activeDelayRemaining = delayTime;
 
+    queueOrPlayMoveSound(soundInfo, true);
     appendMoveToTimeline(lan, uciMove);
     return true;
 }
@@ -2524,6 +2846,12 @@ void Game::loadGameFromPGN(const std::string& path) {
     float loadedBlackTime = -1.f;
     float loadedTimeControl = -1.f;
     int loadedReviewPly = -1;
+    bool loadedVsAI = false;
+    bool loadedGameModeKnown = false;
+    bool loadedAIPlayerKnown = false;
+    bool loadedAIPlaysWhite = false;
+    int loadedAISkillLevel = -1;
+    int loadedAISearchDepth = -1;
 
     std::ifstream file(path);
     if (!file.is_open()) return;
@@ -2542,6 +2870,27 @@ void Game::loadGameFromPGN(const std::string& path) {
                     std::string val = line.substr(firstQuote + 1, lastQuote - firstQuote - 1);
                     if (tag == "White") player1Name = val;
                     else if (tag == "Black") player2Name = val;
+                    else if (tag == "GameMode" || tag == "Mode" || tag == "VsAI") {
+                        loadedGameModeKnown = true;
+                        loadedVsAI = isTruthyTagValue(val);
+                    }
+                    else if (tag == "AIEngine") {
+                        if (isStockfishName(val)) loadedVsAI = true;
+                    }
+                    else if (tag == "AIPlayer") {
+                        std::string side = lowerAscii(val);
+                        if (side == "white" || side == "black") {
+                            loadedVsAI = true;
+                            loadedAIPlayerKnown = true;
+                            loadedAIPlaysWhite = side == "white";
+                        }
+                    }
+                    else if (tag == "AISkillLevel" || tag == "AIDifficulty") {
+                        try { loadedAISkillLevel = std::stoi(val); } catch(...) {}
+                    }
+                    else if (tag == "AISearchDepth") {
+                        try { loadedAISearchDepth = std::stoi(val); } catch(...) {}
+                    }
                     else if (tag == "Variant") {
                         activeVariant = val;
                     }
@@ -2582,6 +2931,25 @@ void Game::loadGameFromPGN(const std::string& path) {
             movesContent += line + " ";
         }
     }
+
+    if (!loadedGameModeKnown && !loadedVsAI && (isStockfishName(player1Name) || isStockfishName(player2Name))) {
+        loadedVsAI = true;
+        loadedAIPlayerKnown = true;
+        loadedAIPlaysWhite = isStockfishName(player1Name);
+    }
+    isVsAI = loadedVsAI;
+    aiPlaysWhite = isVsAI && (loadedAIPlayerKnown ? loadedAIPlaysWhite : isStockfishName(player1Name));
+    if (isVsAI) {
+        activeVariant = "Standard";
+        if (loadedAISkillLevel >= 0) {
+            aiSkillLevel = std::clamp(loadedAISkillLevel, 0, 20);
+        }
+        aiSearchDepth = loadedAISearchDepth > 0 ? loadedAISearchDepth : getDepthForAISkill(aiSkillLevel);
+    } else {
+        aiPlaysWhite = false;
+    }
+    aiMovePending = false;
+    aiMoveDelayRemaining = 0.f;
 
     if (loadedTimeControl > 0.f) initialTimeLimit = loadedTimeControl;
     isUnlimitedTime = (loadedTimeControl > 9999.f || loadedTimeControl <= 0.f); // check if unlimited
@@ -2654,12 +3022,21 @@ void Game::loadGameFromPGN(const std::string& path) {
         if (fromR >= 0 && fromR < 8 && fromC >= 0 && fromC < 8 &&
             toR >= 0 && toR < 8 && toC >= 0 && toC < 8) {
             
+            int uciToC = toC;
+            if (activeVariant == "Standard" && token == "O-O") {
+                uciToC = 6;
+            } else if (activeVariant == "Standard" && token == "O-O-O") {
+                uciToC = 2;
+            }
+            std::string uci = makeUCIMove(fromR, fromC, toR, uciToC, promoChar);
+
             bool needsPromo = board.movePiece(fromR, fromC, toR, toC);
             if (needsPromo && promoChar != '\0') {
                 board.promotePiece(toR, toC, promoChar);
             }
             
             moveList.push_back(token);
+            if (!uci.empty()) uciMoveHistory.push_back(uci);
             stateHistory.push_back(board);
             currentMoveIndex++;
             
@@ -2712,10 +3089,13 @@ void Game::renderLoadGameScreen() {
     
     // Dimmed calm background
     if (gameBgLoaded) {
-        float sx = W / gameBgTexture.getSize().x;
-        float sy = H / gameBgTexture.getSize().y;
-        gameBgSprite.setScale(sx, sy);
-        window.draw(gameBgSprite);
+        const sf::Texture* bgTexture = gameBgSprite.getTexture();
+        if (bgTexture && bgTexture->getSize().x > 0 && bgTexture->getSize().y > 0) {
+            float sx = W / bgTexture->getSize().x;
+            float sy = H / bgTexture->getSize().y;
+            gameBgSprite.setScale(sx, sy);
+            window.draw(gameBgSprite);
+        }
     }
     sf::RectangleShape bgOverlay(sf::Vector2f(W, H));
     bgOverlay.setFillColor(sf::Color(15, 15, 20, 230));

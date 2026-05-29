@@ -10,6 +10,7 @@
 #include "BitmapFont.hpp"
 #include "Menu.hpp"
 #include "PlayerSetupScreen.hpp"
+#include "SoundManager.hpp"
 #include "SettingsScreen.hpp"
 #include "StockfishEngine.hpp"
 
@@ -81,6 +82,9 @@ private:
     void update(float dt);
     void render();
     void loadTextures();
+    void applyMenuPreset();
+    void preloadGameBackgrounds();
+    void loadGameBackground();
     void loadCustomCursor();
     void applyCursorSetting();
     void renderGame();
@@ -99,6 +103,10 @@ private:
     void executePendingAIMove();
     bool applyAIMove(const std::string& uciMove);
     bool chooseWeakAIMove(std::string& uciMove) const;
+    MoveSoundInfo getMoveSoundInfo(int fromRow, int fromCol, int toRow, int toCol) const;
+    MoveSoundInfo getDropSoundInfo() const;
+    void queueOrPlayMoveSound(const MoveSoundInfo& info, bool afterAnimation);
+    void playPendingAnimationSound();
     std::string makeUCIMove(int fromRow, int fromCol, int toRow, int toCol, char promoChar = '\0') const;
     bool isHumanTurn() const;
 
@@ -128,23 +136,29 @@ private:
     bool customCursorLoaded = false;
     bool systemCursorLoaded = false;
     bool usingCustomCursor = true;
+    std::string loadedCursorStyle;
     sf::Clock clock;
 
     ChessBoard board;
     BitmapFont blueFont;      // Used for menu buttons
     BitmapFont stylishFont;   // Used for the CHESS title
+    BitmapFont menuTitleFont;
+    BitmapFont menuButtonFont;
     BitmapFont whiteFont;     // Used for point representation
     std::map<char, sf::Texture> textures;
+    std::map<std::string, sf::Texture> gameBgTextures;
     sf::Texture whiteTurnTex;
     sf::Texture blackTurnTex;
     sf::Texture gameBgTexture;
     sf::Sprite gameBgSprite;
     bool gameBgLoaded = false;
+    std::string loadedGameBgSetting;
 
     // Screens
     Menu*              menu        = nullptr;
     PlayerSetupScreen* setupScreen = nullptr;
     SettingsScreen*    settingsScreen = nullptr;
+    std::string loadedMenuPreset;
 
     // Player info populated by PlayerSetupScreen
     std::string player1Name = "Player 1";
@@ -158,6 +172,11 @@ private:
 
     // Local Stockfish AI
     StockfishEngine stockfish;
+    SoundManager soundManager;
+    MoveSoundInfo pendingAnimationSound;
+    MoveSoundInfo pendingPromotionSound;
+    bool hasPendingAnimationSound = false;
+    bool hasPendingPromotionSound = false;
     bool isVsAI = false;
     bool aiPlaysWhite = false;
     bool aiMovePending = false;
@@ -187,7 +206,4 @@ private:
 
     // Game board state
     const int TILE = 90;
-    const sf::Color lightColor    = sf::Color(240, 217, 181);
-    const sf::Color darkColor     = sf::Color(181, 136, 99);
-    const sf::Color highlightColor = sf::Color(186, 202, 68);
 };

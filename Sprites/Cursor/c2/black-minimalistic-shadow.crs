@@ -1,0 +1,36 @@
+﻿[Arrow]
+Path=Black Minimalistic - normal select.cur
+
+[AppStarting]
+Path=Black Minimalistic - working in background.ani
+
+[Wait]
+Path=Black Minimalistic - busy.ani
+
+[Crosshair]
+Path=Black Minimalistic - precision select.cur
+
+[IBeam]
+Path=Black Minimalistic - text select.ani
+
+[No]
+Path=Black Minimalistic - unavailable.cur
+
+[SizeWE]
+Path=Black Minimalistic - horizontal resize.cur
+
+[SizeNS]
+Path=Black Minimalistic - vertical resize.cur
+
+[SizeNWSE]
+Path=Black Minimalistic - diagonal resize 1.cur
+
+[SizeNESW]
+Path=Black Minimalistic - diagonal resize 2.cur
+
+[SizeAll]
+Path=Black Minimalistic - move.cur
+
+[Hand]
+Path=Black Minimalistic - link select.ani
+

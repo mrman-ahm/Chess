@@ -15,6 +15,10 @@ public:
     void setBaseScale(float s);
     void setHoverScale(float s);
     void setFont(BitmapFont* font);
+    void setColors(sf::Color baseText,
+                   sf::Color activeText,
+                   sf::Color glowOuter,
+                   sf::Color glowLine);
 
     void update(float dt, sf::Vector2f mousePos);
     void draw(sf::RenderWindow& window);
@@ -41,6 +45,10 @@ private:
 
     bool hovered = false;
     bool selected = false;    // Keyboard selection
+    sf::Color baseTextColor = sf::Color(215, 210, 190, 235);
+    sf::Color activeTextColor = sf::Color(255, 225, 130, 255);
+    sf::Color glowOuterColor = sf::Color(255, 210, 80, 45);
+    sf::Color glowLineColor = sf::Color(255, 225, 120, 165);
 
     // Glow line decoration (horizontal line under text)
     float glowWidth = 0.0f;

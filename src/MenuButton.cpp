@@ -9,6 +9,15 @@ void MenuButton::setBaseScale(float s) { baseScale = s; currentScale = s; }
 void MenuButton::setHoverScale(float s) { hoverScale = s; }
 void MenuButton::setFont(BitmapFont* f) { font = f; }
 void MenuButton::setSelected(bool s) { selected = s; }
+void MenuButton::setColors(sf::Color baseText,
+                           sf::Color activeText,
+                           sf::Color glowOuter,
+                           sf::Color glowLine) {
+    baseTextColor = baseText;
+    activeTextColor = activeText;
+    glowOuterColor = glowOuter;
+    glowLineColor = glowLine;
+}
 
 float MenuButton::lerp(float a, float b, float t) {
     return a + (b - a) * t;
@@ -64,25 +73,27 @@ void MenuButton::draw(sf::RenderWindow& window) {
         sf::RectangleShape glowBar(sf::Vector2f(glowWidth + 18.0f, 4.0f));
         glowBar.setOrigin((glowWidth + 18.0f) / 2.0f, 2.0f);
         glowBar.setPosition(centerPos.x, textBottom);
-        glowBar.setFillColor(sf::Color(255, 210, 80, (sf::Uint8)(45 * ratio)));
+        glowBar.setFillColor(sf::Color(glowOuterColor.r, glowOuterColor.g, glowOuterColor.b,
+                                       (sf::Uint8)(glowOuterColor.a * ratio)));
         window.draw(glowBar);
 
         // Inner sharp glow line
         sf::RectangleShape line(sf::Vector2f(glowWidth, 1.4f));
         line.setOrigin(glowWidth / 2.0f, 0.7f);
         line.setPosition(centerPos.x, textBottom);
-        line.setFillColor(sf::Color(255, 225, 120, (sf::Uint8)(165 * ratio)));
+        line.setFillColor(sf::Color(glowLineColor.r, glowLineColor.g, glowLineColor.b,
+                                    (sf::Uint8)(glowLineColor.a * ratio)));
         window.draw(line);
     }
 
     // Draw the text itself with a softened hover transition.
-    sf::Color base(215, 210, 190, 235);
-    sf::Color active(255, 225, 130, 255);
     auto mix = [this](sf::Uint8 a, sf::Uint8 b) {
         return (sf::Uint8)(a + (b - a) * activeAmount);
     };
-    sf::Color textColor(mix(base.r, active.r), mix(base.g, active.g),
-                        mix(base.b, active.b), mix(base.a, active.a));
+    sf::Color textColor(mix(baseTextColor.r, activeTextColor.r),
+                        mix(baseTextColor.g, activeTextColor.g),
+                        mix(baseTextColor.b, activeTextColor.b),
+                        mix(baseTextColor.a, activeTextColor.a));
     font->drawText(window, text, sf::Vector2f(drawX, drawY), currentScale, textColor);
 }
 

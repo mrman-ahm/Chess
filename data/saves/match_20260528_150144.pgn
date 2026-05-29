@@ -1,0 +1,22 @@
+[Event "Casual Match"]
+[Site "Local Machine"]
+[Date "2026.05.28"]
+[Round "1"]
+[White "Player 1"]
+[Black "Stockfish"]
+[WhiteAvatar "0"]
+[BlackAvatar "0"]
+[Result "1/2-1/2"]
+[WhiteTime "561"]
+[BlackTime "585"]
+[TimeControl "600"]
+[IncrementTime "0"]
+[DelayTime "0"]
+[ReviewPly "12"]
+
+1. e2-e4 e7-e5
+2. Qd1-g4 d7-d5
+3. d2-d4 Bc8xg4
+4. f2-f3 Bg4-d7
+5. Ng1-h3 a7-a6
+6. Nh3-f4 e5xf4

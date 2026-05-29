@@ -1,0 +1,28 @@
+[Event "Casual Match"]
+[Site "Local Machine"]
+[Date "2026.05.29"]
+[Round "1"]
+[White "Player 1"]
+[Black "Player 2"]
+[GameMode "Local"]
+[WhiteAvatar "0"]
+[BlackAvatar "0"]
+[Result "1/2-1/2"]
+[WhiteTime "569"]
+[BlackTime "549"]
+[TimeControl "600"]
+[IncrementTime "0"]
+[DelayTime "0"]
+[ReviewPly "22"]
+
+1. e2-e4 d7-d5
+2. g2-g3 e7-e5
+3. h2-h4 f7-f5
+4. h4-h5 g7-g5
+5. Rh1-h4 g5xh4
+6. g3-g4 h7-h6
+7. g4-g5 Rh8-h7
+8. g5-g6 Bf8-e7
+9. g6xh7 b7-b5
+10. a2-a4 b5-b4
+11. Ra1-a3 b4xa3

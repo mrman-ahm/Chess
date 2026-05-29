@@ -1,7 +1,7 @@
 # Compiler and flags
 CXX = g++
 CXXFLAGS = -Iinclude -Iexternal/SFML/include -Wall -Wextra -std=c++17
-LDFLAGS = -Lexternal/SFML/lib -lsfml-graphics -lsfml-window -lsfml-system
+LDFLAGS = -Lexternal/SFML/lib -lsfml-graphics -lsfml-window -lsfml-audio -lsfml-system
 
 # Directories
 SRC_DIR = src
