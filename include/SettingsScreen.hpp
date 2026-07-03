@@ -47,14 +47,17 @@ public:
     // Readable by Game / other systems to apply chosen theme
     const std::string& getMenuPreset()       const { return rows[0].current(); }
     const std::string& getMenuBg()           const { return rows[0].current(); }
-    const std::string& getBoardTileTheme()   const { return rows[1].current(); }
-    const std::string& getBoardBg()          const { return rows[2].current(); }
+    const std::string& getDisplayMode()      const { return rows[1].current(); }
+    const std::string& getBoardTileTheme()   const { return rows[2].current(); }
+    const std::string& getBoardBg()          const { return rows[3].current(); }
     std::string getBoardBgPath() const;
     const std::map<std::string, std::string>& getBoardBackgroundFiles() const { return boardBackgroundFiles; }
-    const std::string& getBoardPerspective() const { return rows[3].current(); }
-    const std::string& getCursorStyle()      const { return rows[4].current(); }
+    const std::string& getBoardPerspective() const { return rows[4].current(); }
+    const std::string& getCursorStyle()      const { return rows[5].current(); }
     std::string getCursorPath() const;
-    bool getFahhMode() const { return rows.size() > 5 && rows[5].current() == "On"; }
+    bool getFahhMode() const { return rows.size() > 6 && rows[6].current() == "On"; }
+    bool getMenuSoundsEnabled() const { return rows.size() <= 7 || rows[7].current() == "On"; }
+    bool getGameSoundsEnabled() const { return rows.size() <= 8 || rows[8].current() == "On"; }
     void setSelection(int rowIdx, const std::string& val);
 
     std::string getPieceMode() const;

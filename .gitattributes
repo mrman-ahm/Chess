@@ -1,1 +1,17 @@
+* text=auto
+
+*.cpp text eol=lf
+*.hpp text eol=lf
+Makefile text eol=lf
+*.md text eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.bmp binary
+*.mp3 binary
+*.cur binary
+*.ani binary
+*.dll binary
+
 stockfish/stockfish-windows-x86-64-avx2.exe filter=lfs diff=lfs merge=lfs -text

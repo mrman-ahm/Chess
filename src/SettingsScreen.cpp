@@ -185,6 +185,13 @@ void SettingsScreen::buildRows() {
         r.currentIndex = std::min(1, (int)r.options.size() - 1);
         rows.push_back(r);
     }
+    {
+        SelectorRow r;
+        r.label = "DISPLAY MODE";
+        r.options = { "Fullscreen", "Windowed" };
+        r.currentIndex = 0;
+        rows.push_back(r);
+    }
     // ── Row 1 : Board Tile Theme ───────────────────────────────────────────
     {
         SelectorRow r;
@@ -247,6 +254,20 @@ void SettingsScreen::buildRows() {
         r.currentIndex = 0;
         rows.push_back(r);
     }
+    {
+        SelectorRow r;
+        r.label = "MENU SOUNDS";
+        r.options = { "On", "Off" };
+        r.currentIndex = 0;
+        rows.push_back(r);
+    }
+    {
+        SelectorRow r;
+        r.label = "GAME SOUNDS";
+        r.options = { "On", "Off" };
+        r.currentIndex = 0;
+        rows.push_back(r);
+    }
     // ── Row 4 : Base Time ──────────────────────────────────────────────────
     {
         SelectorRow r;
@@ -272,7 +293,7 @@ void SettingsScreen::buildRows() {
         rows.push_back(r);
     }
 
-    rows.resize(6);
+    rows.resize(9);
 }
 
 void SettingsScreen::scanBoardBackgrounds() {
@@ -455,7 +476,7 @@ void SettingsScreen::handleEvent(const sf::Event& event) {
             changeSoundRequested = true;
         }
         if (event.key.code == sf::Keyboard::Down) {
-            focusedRow = std::min(std::min(5, (int)rows.size() - 1), focusedRow + 1);
+            focusedRow = std::min(std::min(8, (int)rows.size() - 1), focusedRow + 1);
             changeSoundRequested = true;
         }
         if (event.key.code == sf::Keyboard::Left) {
@@ -482,7 +503,7 @@ void SettingsScreen::handleEvent(const sf::Event& event) {
         float panelX  = W / 2.f - panelW / 2.f;
         float startY  = H * 0.22f;
 
-        int visibleRows = std::min(6, (int)rows.size());
+        int visibleRows = std::min(9, (int)rows.size());
         for (int i = 0; i < visibleRows; ++i) {
             float rowY = startY + i * (rowH + rowGap);
             float rowCX = panelX + panelW / 2.f;
@@ -857,7 +878,7 @@ void SettingsScreen::draw() {
     float startY = H * 0.22f;
     float cx     = W / 2.f;
 
-    int visibleRows = std::min(6, (int)rows.size());
+    int visibleRows = std::min(9, (int)rows.size());
     for (int i = 0; i < visibleRows; ++i) {
         drawRow(rows[i], cx, startY + i * (rowH + rowGap), i == focusedRow);
     }
@@ -890,11 +911,11 @@ void SettingsScreen::setSelection(int rowIdx, const std::string& val) {
         }
     }
 
-    if (rowIdx == 2 && (val == "Texture" || val == "Wood Table")) {
+    if (rowIdx == 3 && (val == "Texture" || val == "Wood Table")) {
         setSelection(rowIdx, "Wood");
     }
 
-    if (rowIdx == 4 && val == "Chess" && getCursorPath().empty() && !r.options.empty()) {
+    if (rowIdx == 5 && val == "Chess" && getCursorPath().empty() && !r.options.empty()) {
         for (int i = 0; i < (int)r.options.size(); ++i) {
             if (r.options[i] != "System") {
                 r.currentIndex = i;
@@ -925,7 +946,7 @@ sf::FloatRect SettingsScreen::getPieceButtonRect() const {
     float rowH = 54.f;
     float rowGap = 10.f;
     float startY = H * 0.22f;
-    return {W / 2.f - panelW / 2.f, startY + 6.f * (rowH + rowGap) + 12.f, panelW, 46.f};
+    return {W / 2.f - panelW / 2.f, startY + 9.f * (rowH + rowGap) + 12.f, panelW, 46.f};
 }
 
 void SettingsScreen::openPieceModal() {

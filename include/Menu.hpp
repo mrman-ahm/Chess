@@ -15,6 +15,7 @@ public:
     Menu(sf::RenderWindow& window,
          BitmapFont& titleFont,
          BitmapFont& uiFont,
+         BitmapFont& overlayFont,
          std::map<char, sf::Texture>& textures,
          const std::string& backgroundPath,
          const std::string& decorativeQueenPath,
@@ -44,6 +45,9 @@ public:
     bool consumeWelcomeSound();
     bool consumeChangeSound();
     bool consumeClickSound();
+    void showUnavailableNotice();
+    void showCredits();
+    void refreshLayout();
 
     // Fade-in on scene entry
     void startFadeIn();
@@ -57,6 +61,7 @@ private:
     void drawDivider();
     void drawShadowPiece();
     void drawCheckerboardAccent();
+    void drawCredits();
     void loadBackground(const std::string& path);
     void loadDecorativeQueen(const std::string& path);
     void applyButtonColors();
@@ -64,6 +69,7 @@ private:
     sf::RenderWindow& window;
     BitmapFont& titleFont;
     BitmapFont& uiFont;
+    BitmapFont& overlayFont;
     std::map<char, sf::Texture>& textures;
 
     std::vector<MenuButton> buttons;
@@ -76,6 +82,8 @@ private:
     bool welcomeSoundRequested = false;
     bool changeSoundRequested = false;
     bool clickSoundRequested = false;
+    float unavailableNoticeTimer = 0.f;
+    bool creditsOpen = false;
 
     // Title bob animation
     float titleTimer = 0.0f;

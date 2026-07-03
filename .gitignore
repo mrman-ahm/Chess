@@ -1,8 +1,29 @@
-# bin/
-# obj/
-# data/saves/
+# Build output
+bin/
+obj/
+dist/
+RELEASE/
+*.o
+*.obj
+*.pdb
 
-# *.exe
-# *.o
+# Local runtime state
+data/config/config.txt
+data/saves/*
+!data/saves/.gitkeep
 
+# Temporary source/import folders
+Audio/default/
+Linux version/
+
+# Editor and operating-system files
+.agents/
+.vscode/
+.idea/
+*.log
+Thumbs.db
+.DS_Store
+
+# Executables are generated, except for the bundled Stockfish engine.
+*.exe
 !stockfish/stockfish-windows-x86-64-avx2.exe

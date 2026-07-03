@@ -15,6 +15,8 @@ class SoundManager {
 public:
     void loadMoveSounds();
     void setFahhMode(bool enabled) { fahhMode = enabled; }
+    void setMenuSoundsEnabled(bool enabled) { menuSoundsEnabled = enabled; }
+    void setGameSoundsEnabled(bool enabled) { gameSoundsEnabled = enabled; }
     bool isFahhMode() const { return fahhMode; }
 
     void update();
@@ -31,4 +33,6 @@ private:
     std::map<std::string, sf::SoundBuffer> buffers;
     std::vector<sf::Sound> activeSounds;
     bool fahhMode = false;
+    bool menuSoundsEnabled = true;
+    bool gameSoundsEnabled = true;
 };

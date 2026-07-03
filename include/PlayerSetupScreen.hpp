@@ -2,6 +2,7 @@
 #include <SFML/Graphics.hpp>
 #include <string>
 #include <array>
+#include <vector>
 #include "BitmapFont.hpp"
 
 // Signals this screen can emit back to Game
@@ -38,6 +39,8 @@ public:
     // Retrieved by Game after StartMatch
     const std::string& getPlayer1Name() const { return fields[0].text; }
     const std::string& getPlayer2Name() const { return fields[1].text; }
+    std::string getPlayer1AvatarPath() const;
+    std::string getPlayer2AvatarPath() const;
 
     const std::string& getGameVariant() const {
         static const std::string standard = "Standard";
@@ -70,6 +73,7 @@ private:
     };
 
     void buildRows();
+    void scanAvatars();
     void drawBackground();
     void drawPanel(float cx, float cy, const std::string& label,
                    NameInputField& field, int avatarSlot);
@@ -90,7 +94,13 @@ private:
     std::vector<SetupSelectorRow> rows;
     int focusedRow = 0;   // central settings navigation
 
-    // Arrow-key avatar selection (placeholder indices, 0-3)
+    struct AvatarInfo {
+        std::string displayName;
+        std::string path;
+        sf::Texture texture;
+    };
+
+    std::vector<AvatarInfo> avatars;
     std::array<int, 2> avatarIndex = {0, 0};
 
     SetupAction pendingAction = SetupAction::None;

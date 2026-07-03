@@ -7,7 +7,7 @@
 // ─────────────────────────────────────────────
 //  Constructor
 // ─────────────────────────────────────────────
-Menu::Menu(sf::RenderWindow& win, BitmapFont& tf, BitmapFont& uf,
+Menu::Menu(sf::RenderWindow& win, BitmapFont& tf, BitmapFont& uf, BitmapFont& of,
            std::map<char, sf::Texture>& tex,
            const std::string& backgroundPath,
            const std::string& decorativeQueenPath,
@@ -18,7 +18,7 @@ Menu::Menu(sf::RenderWindow& win, BitmapFont& tf, BitmapFont& uf,
            sf::Color glowOuterColor,
            sf::Color glowLineColor,
            sf::Color titleTint)
-    : window(win), titleFont(tf), uiFont(uf), textures(tex),
+    : window(win), titleFont(tf), uiFont(uf), overlayFont(of), textures(tex),
       particles(win.getSize(), 55),
       showDecorativeQueen(showQueen),
       showCheckerboard(showBoard),
@@ -29,7 +29,6 @@ Menu::Menu(sf::RenderWindow& win, BitmapFont& tf, BitmapFont& uf,
       titleColor(titleTint),
       W((float)win.getSize().x), H((float)win.getSize().y)
 {
-    std::cout << "Menu::Menu body started" << std::endl;
     buildButtons();
     titleY = H * 0.12f;
     dividerWidth = 0.0f;
@@ -146,7 +145,48 @@ bool Menu::consumeClickSound() {
     return requested;
 }
 
+void Menu::showUnavailableNotice() {
+    unavailableNoticeTimer = 2.2f;
+}
+
+void Menu::showCredits() {
+    creditsOpen = true;
+}
+
+void Menu::refreshLayout() {
+    W = static_cast<float>(window.getSize().x);
+    H = static_cast<float>(window.getSize().y);
+    particles = ParticleSystem(window.getSize(), 55);
+    buildButtons();
+    dividerWidth = std::min(dividerWidth, W * 0.38f);
+
+    if (bgLoaded && bgTexture.getSize().x > 0 && bgTexture.getSize().y > 0) {
+        bgSprite.setScale(W / static_cast<float>(bgTexture.getSize().x),
+                          H / static_cast<float>(bgTexture.getSize().y));
+    }
+}
+
 void Menu::handleEvent(const sf::Event& event) {
+    if (creditsOpen) {
+        if (event.type == sf::Event::KeyPressed &&
+            (event.key.code == sf::Keyboard::Escape ||
+             event.key.code == sf::Keyboard::Return ||
+             event.key.code == sf::Keyboard::Space)) {
+            creditsOpen = false;
+            clickSoundRequested = true;
+        } else if (event.type == sf::Event::MouseButtonPressed &&
+                   event.mouseButton.button == sf::Mouse::Left) {
+            sf::Vector2f mp = window.mapPixelToCoords(
+                {event.mouseButton.x, event.mouseButton.y});
+            sf::FloatRect backRect(W / 2.f - 75.f, H * 0.83f, 150.f, 42.f);
+            if (backRect.contains(mp)) {
+                creditsOpen = false;
+                clickSoundRequested = true;
+            }
+        }
+        return;
+    }
+
     if (event.type == sf::Event::KeyPressed) {
         // Keyboard navigation
         if (event.key.code == sf::Keyboard::Up || event.key.code == sf::Keyboard::W) {
@@ -186,6 +226,7 @@ void Menu::handleEvent(const sf::Event& event) {
 
 void Menu::update(float dt) {
     titleTimer += dt;
+    unavailableNoticeTimer = std::max(0.f, unavailableNoticeTimer - dt);
 
     // Grow the divider line on first frame
     float targetDiv = W * 0.38f;
@@ -239,12 +280,128 @@ void Menu::draw() {
     for (auto& btn : buttons)
         btn.draw(window);
 
+    if (unavailableNoticeTimer > 0.f) {
+        float alphaFactor = std::min(1.f, unavailableNoticeTimer * 3.f);
+        sf::Uint8 alpha = static_cast<sf::Uint8>(220.f * alphaFactor);
+        const float boxW = 390.f;
+        const float boxH = 76.f;
+        const float boxX = W / 2.f - boxW / 2.f;
+        const float boxY = H * 0.80f;
+
+        sf::RectangleShape shadow({boxW, boxH});
+        shadow.setPosition(boxX + 5.f, boxY + 6.f);
+        shadow.setFillColor(sf::Color(0, 0, 0, static_cast<sf::Uint8>(100.f * alphaFactor)));
+        window.draw(shadow);
+
+        sf::RectangleShape notice({boxW, boxH});
+        notice.setPosition(boxX, boxY);
+        notice.setFillColor(sf::Color(18, 18, 24, alpha));
+        notice.setOutlineThickness(1.5f);
+        notice.setOutlineColor(sf::Color(210, 210, 220, static_cast<sf::Uint8>(170.f * alphaFactor)));
+        window.draw(notice);
+
+        const std::string message = "NOT COMING SOON";
+        const float messageScale = 0.28f;
+        const float messageWidth = overlayFont.getTextWidth(message, messageScale);
+        overlayFont.drawText(window, message,
+                        {W / 2.f - messageWidth / 2.f, boxY + 23.f},
+                        messageScale,
+                        sf::Color(245, 245, 250, static_cast<sf::Uint8>(255.f * alphaFactor)));
+    }
+
+    if (creditsOpen) {
+        drawCredits();
+    }
+
     // Fade-in black overlay (drawn last so it covers everything)
     if (fadeAlpha > 0.0f) {
         sf::RectangleShape overlay(sf::Vector2f(W, H));
         overlay.setFillColor(sf::Color(0, 0, 0, (sf::Uint8)fadeAlpha));
         window.draw(overlay);
     }
+}
+
+void Menu::drawCredits() {
+    sf::RectangleShape overlay({W, H});
+    overlay.setFillColor(sf::Color(0, 0, 0, 205));
+    window.draw(overlay);
+
+    const float panelW = std::min(760.f, W * 0.72f);
+    const float panelH = std::min(680.f, H * 0.76f);
+    const float panelX = W / 2.f - panelW / 2.f;
+    const float panelY = H / 2.f - panelH / 2.f;
+
+    sf::RectangleShape shadow({panelW, panelH});
+    shadow.setPosition(panelX + 7.f, panelY + 9.f);
+    shadow.setFillColor(sf::Color(0, 0, 0, 115));
+    window.draw(shadow);
+
+    sf::RectangleShape panel({panelW, panelH});
+    panel.setPosition(panelX, panelY);
+    panel.setFillColor(sf::Color(18, 18, 24, 248));
+    panel.setOutlineThickness(1.5f);
+    panel.setOutlineColor(sf::Color(175, 160, 110, 220));
+    window.draw(panel);
+
+    const std::string heading = "CREDITS";
+    const float headingScale = 0.36f;
+    const float headingWidth = overlayFont.getTextWidth(heading, headingScale);
+    overlayFont.drawText(window, heading,
+                    {W / 2.f - headingWidth / 2.f, panelY + 25.f},
+                    headingScale, sf::Color(235, 220, 165));
+
+    sf::RectangleShape divider({panelW - 80.f, 1.5f});
+    divider.setPosition(panelX + 40.f, panelY + 78.f);
+    divider.setFillColor(sf::Color(150, 135, 90, 180));
+    window.draw(divider);
+
+    static const std::vector<std::string> roles = {
+        "CREATIVE DIRECTOR",
+        "GAME DIRECTOR",
+        "GAME DESIGNER",
+        "PROJECT MANAGER",
+        "LEAD DEVELOPER",
+        "GAMEPLAY PROGRAMMER",
+        "AI SYSTEMS PROGRAMMER",
+        "UI / UX DESIGNER",
+        "GRAPHIC DESIGNER",
+        "TECHNICAL ARTIST",
+        "ANIMATION DESIGNER",
+        "SOUND DESIGNER",
+        "QUALITY ASSURANCE",
+        "BUILD & RELEASE"
+    };
+
+    const float rowsTop = panelY + 100.f;
+    const float rowsBottom = panelY + panelH - 78.f;
+    const float rowStep = (rowsBottom - rowsTop) / static_cast<float>(roles.size());
+    const float roleScale = 0.15f;
+    const float nameScale = 0.16f;
+    const std::string name = "MUHAMMAD AHMAD";
+    const float nameWidth = overlayFont.getTextWidth(name, nameScale);
+
+    for (std::size_t i = 0; i < roles.size(); ++i) {
+        const float y = rowsTop + static_cast<float>(i) * rowStep;
+        overlayFont.drawText(window, roles[i], {panelX + 42.f, y}, roleScale,
+                        sf::Color(150, 150, 165));
+        overlayFont.drawText(window, name, {panelX + panelW - 42.f - nameWidth, y}, nameScale,
+                        sf::Color(230, 230, 238));
+    }
+
+    sf::FloatRect backRect(W / 2.f - 75.f, H * 0.83f, 150.f, 42.f);
+    sf::RectangleShape back({backRect.width, backRect.height});
+    back.setPosition(backRect.left, backRect.top);
+    back.setFillColor(sf::Color(34, 34, 42, 245));
+    back.setOutlineThickness(1.5f);
+    back.setOutlineColor(sf::Color(180, 165, 115, 220));
+    window.draw(back);
+
+    const std::string backText = "BACK";
+    const float backScale = 0.20f;
+    const float backWidth = overlayFont.getTextWidth(backText, backScale);
+    overlayFont.drawText(window, backText,
+                    {W / 2.f - backWidth / 2.f, backRect.top + 11.f},
+                    backScale, sf::Color(235, 235, 240));
 }
 
 // ─────────────────────────────────────────────
@@ -283,16 +440,22 @@ void Menu::drawTitle(float /*dt*/) {
     // Gentle bob using sin wave
     float bob = std::sin(titleTimer * 1.4f) * 4.0f;
 
+    const std::string title = "SIXTY-FOUR";
     float scale = 1.4f;
-    float tw = titleFont.getTextWidth("CHESS", scale);
+    float tw = titleFont.getTextWidth(title, scale);
+    const float maxTitleWidth = W * 0.42f;
+    if (tw > maxTitleWidth && tw > 0.f) {
+        scale *= maxTitleWidth / tw;
+        tw = titleFont.getTextWidth(title, scale);
+    }
     float tx = W * 0.28f - tw / 2.0f;  // centered over the button column
     float ty = H * 0.09f + bob;
 
     // Shadow pass (offset, dark)
-    titleFont.drawText(window, "CHESS", sf::Vector2f(tx + 3.0f, ty + 4.0f), scale, sf::Color(0, 0, 0, 90));
+    titleFont.drawText(window, title, sf::Vector2f(tx + 3.0f, ty + 4.0f), scale, sf::Color(0, 0, 0, 90));
 
     // Main title pass
-    titleFont.drawText(window, "CHESS", sf::Vector2f(tx, ty), scale, titleColor);
+    titleFont.drawText(window, title, sf::Vector2f(tx, ty), scale, titleColor);
 
     // Subtitle — placed below the main title
 }

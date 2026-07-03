@@ -83,6 +83,7 @@ private:
     void render();
     void loadTextures();
     void applyMenuPreset();
+    void applyDisplayMode();
     void preloadGameBackgrounds();
     void loadGameBackground();
     void loadCustomCursor();
@@ -91,7 +92,9 @@ private:
     void renderExitConfirmation();
     void renderEndGameModal();         // Premium glassmorphic end-game popup
     void updateLastMoveHighlight();    // Re-derive highlights from moveList on undo/redo
-    void drawPlayerPanel(float x, float y, const std::string& name, bool nameBelow);
+    void drawPlayerPanel(float x, float y, const std::string& name, bool nameBelow, const sf::Texture* avatarTexture);
+    void loadPlayerAvatarTextures();
+    bool loadAvatarTexture(const std::string& path, sf::Texture& texture);
     void renderGearButton();
     void renderActionButtons();
     void renderMoveHistoryPanel();
@@ -159,10 +162,17 @@ private:
     PlayerSetupScreen* setupScreen = nullptr;
     SettingsScreen*    settingsScreen = nullptr;
     std::string loadedMenuPreset;
+    std::string loadedDisplayMode;
 
     // Player info populated by PlayerSetupScreen
     std::string player1Name = "Player 1";
     std::string player2Name = "Player 2";
+    std::string player1AvatarPath;
+    std::string player2AvatarPath;
+    sf::Texture player1AvatarTexture;
+    sf::Texture player2AvatarTexture;
+    bool player1AvatarLoaded = false;
+    bool player2AvatarLoaded = false;
 
     // Timeline variables for Undo/Redo
     std::vector<ChessBoard> stateHistory;

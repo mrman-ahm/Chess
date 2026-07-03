@@ -2,6 +2,8 @@
 #include "UIPrimitives.hpp"
 #include <algorithm>
 #include <cmath>
+#include <cctype>
+#include <filesystem>
 #include <iostream>
 
 // ─── Palette ──────────────────────────────────────────────────────────────
@@ -15,15 +17,71 @@ static const sf::Color COL_SUBTEXT  = sf::Color(140, 140, 158);
 static const sf::Color COL_CURSOR   = sf::Color(173, 146, 29, 220);
 static const sf::Color COL_ACTIVE   = sf::Color(30,  30,  38);
 
+static std::string titleFromFileStem(std::string stem) {
+    for (char& ch : stem) {
+        if (ch == '_' || ch == '-' || ch == '.') ch = ' ';
+    }
+
+    bool newWord = true;
+    for (char& ch : stem) {
+        if (std::isspace((unsigned char)ch)) {
+            newWord = true;
+        } else if (newWord) {
+            ch = (char)std::toupper((unsigned char)ch);
+            newWord = false;
+        } else {
+            ch = (char)std::tolower((unsigned char)ch);
+        }
+    }
+    return stem;
+}
+
+static bool isSupportedAvatarFile(const std::filesystem::path& path) {
+    std::string ext = path.extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char ch) {
+        return (char)std::tolower(ch);
+    });
+    return ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp";
+}
+
 PlayerSetupScreen::PlayerSetupScreen(sf::RenderWindow& win,
                                      BitmapFont& title,
                                      BitmapFont& body)
     : window(win), titleFont(title), bodyFont(body)
 {
+    scanAvatars();
     fields[0].text = "Player 1";
     fields[1].text = "Player 2";
     fields[0].active = true;
     buildRows();
+}
+
+void PlayerSetupScreen::scanAvatars() {
+    avatars.clear();
+    const std::filesystem::path root("Sprites/Avatars");
+    std::vector<std::filesystem::path> files;
+
+    if (std::filesystem::exists(root) && std::filesystem::is_directory(root)) {
+        for (const auto& entry : std::filesystem::directory_iterator(root)) {
+            if (entry.is_regular_file() && isSupportedAvatarFile(entry.path())) {
+                files.push_back(entry.path());
+            }
+        }
+    }
+
+    std::sort(files.begin(), files.end(), [](const auto& a, const auto& b) {
+        return a.filename().string() < b.filename().string();
+    });
+
+    for (const auto& path : files) {
+        AvatarInfo avatar;
+        avatar.displayName = titleFromFileStem(path.stem().string());
+        avatar.path = path.generic_string();
+        if (avatar.texture.loadFromFile(avatar.path)) {
+            avatar.texture.setSmooth(true);
+            avatars.push_back(std::move(avatar));
+        }
+    }
 }
 
 void PlayerSetupScreen::reset() {
@@ -37,6 +95,18 @@ void PlayerSetupScreen::reset() {
     pendingAction = SetupAction::None;
     startHover = backHover = 0.f;
     buildRows();
+}
+
+std::string PlayerSetupScreen::getPlayer1AvatarPath() const {
+    if (avatars.empty()) return "";
+    int idx = std::clamp(avatarIndex[0], 0, (int)avatars.size() - 1);
+    return avatars[idx].path;
+}
+
+std::string PlayerSetupScreen::getPlayer2AvatarPath() const {
+    if (avatars.empty()) return "";
+    int idx = std::clamp(avatarIndex[1], 0, (int)avatars.size() - 1);
+    return avatars[idx].path;
 }
 
 void PlayerSetupScreen::setAIMode(bool enabled) {
@@ -161,10 +231,11 @@ void PlayerSetupScreen::handleEvent(const sf::Event& event) {
             }
         } else {
             // Avatar cycling via arrow keys
+            int count = std::max(1, (int)avatars.size());
             if (event.key.code == sf::Keyboard::Left && activeField < 2)
-                avatarIndex[activeField] = (avatarIndex[activeField] + 3) % 4;
+                avatarIndex[activeField] = (avatarIndex[activeField] + count - 1) % count;
             if (event.key.code == sf::Keyboard::Right && activeField < 2)
-                avatarIndex[activeField] = (avatarIndex[activeField] + 1) % 4;
+                avatarIndex[activeField] = (avatarIndex[activeField] + 1) % count;
         }
     }
 
@@ -183,8 +254,24 @@ void PlayerSetupScreen::handleEvent(const sf::Event& event) {
         // Player panel click-to-focus
         if (sf::FloatRect(p1x, py, pW, pH).contains(mp)) {
             fields[0].active = true;  fields[1].active = false; activeField = 0; settingsFocused = false;
+            float cxPanel = p1x + pW / 2.f;
+            float innerY = py + 28.f + 28.f + 14.f + pW * 0.44f + 14.f;
+            int count = std::max(1, (int)avatars.size());
+            if (sf::FloatRect(p1x + 15, innerY - 8, 30, 28).contains(mp)) {
+                avatarIndex[0] = (avatarIndex[0] + count - 1) % count;
+            } else if (sf::FloatRect(p1x + pW - 45, innerY - 8, 30, 28).contains(mp)) {
+                avatarIndex[0] = (avatarIndex[0] + 1) % count;
+            }
+            (void)cxPanel;
         } else if (!aiMode && sf::FloatRect(p2x, py, pW, pH).contains(mp)) {
             fields[1].active = true;  fields[0].active = false; activeField = 1; settingsFocused = false;
+            float innerY = py + 28.f + 28.f + 14.f + pW * 0.44f + 14.f;
+            int count = std::max(1, (int)avatars.size());
+            if (sf::FloatRect(p2x + 15, innerY - 8, 30, 28).contains(mp)) {
+                avatarIndex[1] = (avatarIndex[1] + count - 1) % count;
+            } else if (sf::FloatRect(p2x + pW - 45, innerY - 8, 30, 28).contains(mp)) {
+                avatarIndex[1] = (avatarIndex[1] + 1) % count;
+            }
         } else if (sf::FloatRect(cx, py, cW, pH).contains(mp)) {
             fields[0].active = false; fields[1].active = false; activeField = 2; settingsFocused = true;
             
@@ -327,12 +414,27 @@ void PlayerSetupScreen::drawPanel(float px, float py,
                          focused ? COL_ACCENT : COL_BORDER,
                          1.5f);
 
-    std::string qmark = "?";
-    float qScale = 0.35f;
-    float qw = bodyFont.getTextWidth(qmark, qScale);
-    bodyFont.drawText(window, qmark,
-                      {cx - qw / 2.f, innerY + avSize / 2.f - 14.f},
-                      qScale, sf::Color(80, 80, 95));
+    if (!avatars.empty()) {
+        int idx = std::clamp(avatarSlot, 0, (int)avatars.size() - 1);
+        const sf::Texture& texture = avatars[idx].texture;
+        sf::Sprite sprite(texture);
+        sf::Vector2u size = texture.getSize();
+        if (size.x > 0 && size.y > 0) {
+            float maxSize = avSize - 12.f;
+            float scale = std::min(maxSize / (float)size.x, maxSize / (float)size.y);
+            sprite.setScale(scale, scale);
+            sf::FloatRect bounds = sprite.getGlobalBounds();
+            sprite.setPosition(cx - bounds.width / 2.f, innerY + avSize / 2.f - bounds.height / 2.f);
+            window.draw(sprite);
+        }
+    } else {
+        std::string qmark = "?";
+        float qScale = 0.35f;
+        float qw = bodyFont.getTextWidth(qmark, qScale);
+        bodyFont.drawText(window, qmark,
+                          {cx - qw / 2.f, innerY + avSize / 2.f - 14.f},
+                          qScale, sf::Color(80, 80, 95));
+    }
 
     innerY += avSize + 14.f;
 
@@ -357,11 +459,13 @@ void PlayerSetupScreen::drawPanel(float px, float py,
                       arrowScale * (rHov ? 1.25f : 1.0f),
                       rHov ? COL_ACCENT_L : COL_SUBTEXT);
 
-    for (int i = 0; i < 4; ++i) {
+    int dotCount = std::min(8, std::max(1, (int)avatars.size()));
+    for (int i = 0; i < dotCount; ++i) {
         sf::CircleShape dot(3.f);
         dot.setOrigin(3.f, 3.f);
-        dot.setPosition(cx - 4.5f * 3 + i * 12.f, aY + 4.f);
-        dot.setFillColor(i == avatarSlot ? COL_ACCENT : COL_BORDER);
+        dot.setPosition(cx - (dotCount - 1) * 6.f + i * 12.f, aY + 4.f);
+        int activeDot = avatars.empty() ? 0 : (avatarSlot * dotCount / (int)avatars.size());
+        dot.setFillColor(i == activeDot ? COL_ACCENT : COL_BORDER);
         window.draw(dot);
     }
     innerY += 30.f;

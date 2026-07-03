@@ -243,6 +243,15 @@ static bool isStockfishName(const std::string& name) {
     return lowerAscii(name).find("stockfish") != std::string::npos;
 }
 
+static std::string escapePGNTagValue(std::string value) {
+    std::string escaped;
+    for (char ch : value) {
+        if (ch == '\\' || ch == '"') escaped += '\\';
+        escaped += ch;
+    }
+    return escaped;
+}
+
 static float fitTextureScale(const sf::Texture& texture, float targetSize) {
     sf::Vector2u size = texture.getSize();
     float largest = (float)std::max(size.x, size.y);
@@ -271,8 +280,8 @@ static BoardTilePalette boardTilePaletteForTheme(const std::string& theme) {
 }
 
 Game::Game()
-    : window(sf::VideoMode::getDesktopMode(), "Chess — The Royal Game",
-             sf::Style::Fullscreen)
+    : window(sf::VideoMode::getDesktopMode(), "SIXTY-FOUR",
+             sf::Style::None)
 {
     window.setFramerateLimit(60);
     systemCursorLoaded = systemCursor.loadFromSystem(sf::Cursor::Arrow);
@@ -293,11 +302,14 @@ Game::Game()
     ensureDirectoriesExist();
     loadConfig();
     soundManager.setFahhMode(settingsScreen && settingsScreen->getFahhMode());
+    soundManager.setMenuSoundsEnabled(!settingsScreen || settingsScreen->getMenuSoundsEnabled());
+    soundManager.setGameSoundsEnabled(!settingsScreen || settingsScreen->getGameSoundsEnabled());
+    applyDisplayMode();
     applyMenuPreset();
     preloadGameBackgrounds();
     loadTextures();
     const MenuPresetConfig& menuPreset = findMenuPreset(loadedMenuPreset);
-    menu = new Menu(window, menuTitleFont, menuButtonFont, textures,
+    menu = new Menu(window, menuTitleFont, menuButtonFont, whiteFont, textures,
                     menuPreset.backgroundPath,
                     menuPreset.decorativeQueenPath,
                     menuPreset.showDecorativeQueen,
@@ -375,6 +387,35 @@ void Game::applyMenuPreset() {
     }
 }
 
+void Game::applyDisplayMode() {
+    const std::string mode = settingsScreen ? settingsScreen->getDisplayMode() : "Fullscreen";
+    if (mode == loadedDisplayMode) {
+        return;
+    }
+
+    const sf::VideoMode desktop = sf::VideoMode::getDesktopMode();
+    if (mode == "Windowed") {
+        const unsigned int width = std::min(1280u, desktop.width);
+        const unsigned int height = std::min(720u, desktop.height);
+        window.create(sf::VideoMode(width, height), "SIXTY-FOUR", sf::Style::Titlebar | sf::Style::Close);
+        if (desktop.width > width && desktop.height > height) {
+            window.setPosition({
+                static_cast<int>((desktop.width - width) / 2u),
+                static_cast<int>((desktop.height - height) / 2u)
+            });
+        }
+    } else {
+        window.create(desktop, "SIXTY-FOUR", sf::Style::None);
+    }
+
+    window.setFramerateLimit(60);
+    loadedDisplayMode = mode;
+    if (menu) {
+        menu->refreshLayout();
+    }
+    applyCursorSetting();
+}
+
 void Game::loadTextures() {
     textures.clear();
 
@@ -444,6 +485,18 @@ void Game::loadGameBackground() {
     } else {
         std::cerr << "Failed: " << bgPath << "\n";
     }
+}
+
+bool Game::loadAvatarTexture(const std::string& path, sf::Texture& texture) {
+    if (path.empty() || !std::filesystem::exists(path)) return false;
+    if (!texture.loadFromFile(path)) return false;
+    texture.setSmooth(true);
+    return true;
+}
+
+void Game::loadPlayerAvatarTextures() {
+    player1AvatarLoaded = loadAvatarTexture(player1AvatarPath, player1AvatarTexture);
+    player2AvatarLoaded = loadAvatarTexture(player2AvatarPath, player2AvatarTexture);
 }
 
 void Game::run() {
@@ -1081,6 +1134,10 @@ void Game::update(float dt) {
             } else if (action == MenuAction::Settings) {
                 previousState = State::MENU;
                 startTransition(State::SETTINGS);
+            } else if (action == MenuAction::Multiplayer) {
+                menu->showUnavailableNotice();
+            } else if (action == MenuAction::Credits) {
+                menu->showCredits();
             } else if (action == MenuAction::Exit) {
                 exitConfirmOpen = true;
             }
@@ -1100,12 +1157,17 @@ void Game::update(float dt) {
                 aiPlaysWhite = humanWantsBlack || (randomColor && !humanPlaysWhite);
                 player1Name = aiPlaysWhite ? "Stockfish" : setupScreen->getPlayer1Name();
                 player2Name = aiPlaysWhite ? setupScreen->getPlayer1Name() : "Stockfish";
+                player1AvatarPath = aiPlaysWhite ? "" : setupScreen->getPlayer1AvatarPath();
+                player2AvatarPath = aiPlaysWhite ? setupScreen->getPlayer1AvatarPath() : "";
             } else {
                 bool swapPlayers = randomChoice;
                 player1Name = swapPlayers ? setupScreen->getPlayer2Name() : setupScreen->getPlayer1Name();
                 player2Name = swapPlayers ? setupScreen->getPlayer1Name() : setupScreen->getPlayer2Name();
+                player1AvatarPath = swapPlayers ? setupScreen->getPlayer2AvatarPath() : setupScreen->getPlayer1AvatarPath();
+                player2AvatarPath = swapPlayers ? setupScreen->getPlayer1AvatarPath() : setupScreen->getPlayer2AvatarPath();
                 aiPlaysWhite = false;
             }
+            loadPlayerAvatarTextures();
             board = ChessBoard();
 
             activeVariant = isVsAI ? "Standard" : setupScreen->getGameVariant();
@@ -1168,8 +1230,11 @@ void Game::update(float dt) {
         settingsScreen->update(dt);
         if (settingsScreen->consumeChangeSound()) soundManager.playMenuChange();
         if (settingsScreen->consumeClickSound()) soundManager.playMenuClick();
+        applyDisplayMode();
         applyCursorSetting();
         soundManager.setFahhMode(settingsScreen->getFahhMode());
+        soundManager.setMenuSoundsEnabled(settingsScreen->getMenuSoundsEnabled());
+        soundManager.setGameSoundsEnabled(settingsScreen->getGameSoundsEnabled());
         if (loadedMenuPreset != settingsScreen->getMenuPreset()) {
             applyMenuPreset();
         }
@@ -1288,7 +1353,7 @@ void Game::update(float dt) {
         if (isGameFinished) endGamePulse += dt;
 
         // 4. Title Updates
-        std::string title = "Chess — ";
+        std::string title = "SIXTY-FOUR - ";
         if (inCheckmate) {
             title += std::string(board.isWhiteTurn ? "Black" : "White") + " Wins! (Checkmate)";
         } else if (kingOfHillWin) {
@@ -1792,7 +1857,8 @@ void Game::renderGame() {
     
     // Top right: Black player (Player 2). Name below avatar.
     float blackAvatarY = offsetY - 15.0f;
-    drawPlayerPanel(stackX, blackAvatarY, player2Name, true);
+    drawPlayerPanel(stackX, blackAvatarY, player2Name, true,
+                    player2AvatarLoaded ? &player2AvatarTexture : nullptr);
     
     // Top right clock (Black): placed right beneath name
     float blackClockY = blackAvatarY + avatarSize + 12.0f + 26.0f;
@@ -1800,7 +1866,8 @@ void Game::renderGame() {
 
     // Bottom right: White player (Player 1). Name above avatar.
     float whiteAvatarY = offsetY + boardSize - avatarSize + 15.0f;
-    drawPlayerPanel(stackX, whiteAvatarY, player1Name, false);
+    drawPlayerPanel(stackX, whiteAvatarY, player1Name, false,
+                    player1AvatarLoaded ? &player1AvatarTexture : nullptr);
     
     // Bottom right clock (White): placed right beneath avatar
     float whiteClockY = whiteAvatarY + avatarSize + 12.0f;
@@ -1839,7 +1906,7 @@ void Game::renderGame() {
     }
 }
 
-void Game::drawPlayerPanel(float x, float y, const std::string& name, bool nameBelow) {
+void Game::drawPlayerPanel(float x, float y, const std::string& name, bool nameBelow, const sf::Texture* avatarTexture) {
     float avatarSize = 75.0f;
     float padding = 12.0f;
 
@@ -1852,6 +1919,18 @@ void Game::drawPlayerPanel(float x, float y, const std::string& name, bool nameB
                          sf::Color(35, 35, 40),
                          sf::Color(80, 80, 90),
                          1.4f);
+
+    if (avatarTexture && avatarTexture->getSize().x > 0 && avatarTexture->getSize().y > 0) {
+        sf::Sprite avatar(*avatarTexture);
+        sf::Vector2u size = avatarTexture->getSize();
+        float maxSize = avatarSize - 10.f;
+        float scale = std::min(maxSize / (float)size.x, maxSize / (float)size.y);
+        avatar.setScale(scale, scale);
+        sf::FloatRect bounds = avatar.getGlobalBounds();
+        avatar.setPosition(x + avatarSize / 2.f - bounds.width / 2.f,
+                           y + avatarSize / 2.f - bounds.height / 2.f);
+        window.draw(avatar);
+    }
 
     // Player Name
     float nameScale = 0.18f;
@@ -2241,19 +2320,24 @@ void Game::loadConfig() {
             try { statDraws = std::stoi(val); } catch (...) {}
         } else if (key == "total_games") {
             try { statTotalGames = std::stoi(val); } catch (...) {}
-        } else if (key == "menu_preset" || key == "menu_background" || key == "board_tile_theme" || key == "board_background" ||
-                   key == "board_perspective" || key == "cursor_style" || key == "fahh_mode") {
+        } else if (key == "menu_preset" || key == "menu_background" || key == "display_mode" ||
+                   key == "board_tile_theme" || key == "board_background" ||
+                   key == "board_perspective" || key == "cursor_style" || key == "fahh_mode" ||
+                   key == "menu_sounds" || key == "game_sounds") {
             if (settingsScreen) {
                 int rowIdx = -1;
                 if (key == "menu_preset") rowIdx = 0;
                 else if (key == "menu_background" && val.rfind("Preset ", 0) == 0) rowIdx = 0;
-                else if (key == "board_tile_theme") rowIdx = 1;
-                else if (key == "board_background") rowIdx = 2;
-                else if (key == "board_perspective") rowIdx = 3;
-                else if (key == "cursor_style") rowIdx = 4;
-                else if (key == "fahh_mode") rowIdx = 5;
+                else if (key == "display_mode") rowIdx = 1;
+                else if (key == "board_tile_theme") rowIdx = 2;
+                else if (key == "board_background") rowIdx = 3;
+                else if (key == "board_perspective") rowIdx = 4;
+                else if (key == "cursor_style") rowIdx = 5;
+                else if (key == "fahh_mode") rowIdx = 6;
+                else if (key == "menu_sounds") rowIdx = 7;
+                else if (key == "game_sounds") rowIdx = 8;
                 if (rowIdx != -1) {
-                    if (key == "fahh_mode") {
+                    if (key == "fahh_mode" || key == "menu_sounds" || key == "game_sounds") {
                         std::string lowered = lowerAscii(val);
                         settingsScreen->setSelection(rowIdx, (lowered == "1" || lowered == "true" || lowered == "on" || lowered == "yes") ? "On" : "Off");
                     } else {
@@ -2288,11 +2372,14 @@ void Game::saveConfig() {
     file << "# User Preferences\n";
     if (settingsScreen) {
         file << "menu_preset=" << settingsScreen->getMenuPreset() << "\n";
+        file << "display_mode=" << settingsScreen->getDisplayMode() << "\n";
         file << "board_tile_theme=" << settingsScreen->getBoardTileTheme() << "\n";
         file << "board_background=" << settingsScreen->getBoardBg() << "\n";
         file << "board_perspective=" << settingsScreen->getBoardPerspective() << "\n";
         file << "cursor_style=" << settingsScreen->getCursorStyle() << "\n";
         file << "fahh_mode=" << (settingsScreen->getFahhMode() ? "On" : "Off") << "\n";
+        file << "menu_sounds=" << (settingsScreen->getMenuSoundsEnabled() ? "On" : "Off") << "\n";
+        file << "game_sounds=" << (settingsScreen->getGameSoundsEnabled() ? "On" : "Off") << "\n";
         file << "piece_mode=" << settingsScreen->getPieceMode() << "\n";
         file << "piece_set=" << settingsScreen->getPieceSetName() << "\n";
         file << "piece_custom_pawn=" << settingsScreen->getCustomPieceSetName('P') << "\n";
@@ -2303,11 +2390,14 @@ void Game::saveConfig() {
         file << "piece_custom_king=" << settingsScreen->getCustomPieceSetName('K') << "\n";
     } else {
         file << "menu_preset=Preset 2\n";
+        file << "display_mode=Fullscreen\n";
         file << "board_tile_theme=Classic\n";
         file << "board_background=Texture\n";
         file << "board_perspective=White\n";
         file << "cursor_style=Chess\n";
         file << "fahh_mode=Off\n";
+        file << "menu_sounds=On\n";
+        file << "game_sounds=On\n";
         file << "piece_mode=Set\n";
         file << "piece_set=\n";
     }
@@ -2386,10 +2476,8 @@ std::string Game::generatePGNContent(int limit) {
         ss << "[AISearchDepth \"" << aiSearchDepth << "\"]\n";
     }
     
-    int whiteAv = setupScreen ? 0 : 0;
-    int blackAv = setupScreen ? 0 : 0;
-    ss << "[WhiteAvatar \"" << whiteAv << "\"]\n";
-    ss << "[BlackAvatar \"" << blackAv << "\"]\n";
+    ss << "[WhiteAvatar \"" << escapePGNTagValue(player1AvatarPath) << "\"]\n";
+    ss << "[BlackAvatar \"" << escapePGNTagValue(player2AvatarPath) << "\"]\n";
     
     if (activeVariant != "Standard") {
         ss << "[Variant \"" << activeVariant << "\"]\n";
@@ -2870,6 +2958,8 @@ void Game::loadGameFromPGN(const std::string& path) {
                     std::string val = line.substr(firstQuote + 1, lastQuote - firstQuote - 1);
                     if (tag == "White") player1Name = val;
                     else if (tag == "Black") player2Name = val;
+                    else if (tag == "WhiteAvatar") player1AvatarPath = val;
+                    else if (tag == "BlackAvatar") player2AvatarPath = val;
                     else if (tag == "GameMode" || tag == "Mode" || tag == "VsAI") {
                         loadedGameModeKnown = true;
                         loadedVsAI = isTruthyTagValue(val);
@@ -2939,6 +3029,9 @@ void Game::loadGameFromPGN(const std::string& path) {
     }
     isVsAI = loadedVsAI;
     aiPlaysWhite = isVsAI && (loadedAIPlayerKnown ? loadedAIPlaysWhite : isStockfishName(player1Name));
+    if (isStockfishName(player1Name)) player1AvatarPath.clear();
+    if (isStockfishName(player2Name)) player2AvatarPath.clear();
+    loadPlayerAvatarTextures();
     if (isVsAI) {
         activeVariant = "Standard";
         if (loadedAISkillLevel >= 0) {

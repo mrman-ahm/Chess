@@ -41,10 +41,12 @@ void SoundManager::update() {
 }
 
 void SoundManager::playPickup() {
+    if (!gameSoundsEnabled) return;
     play("default.pickup");
 }
 
 void SoundManager::playMoveResolution(const MoveSoundInfo& info) {
+    if (!gameSoundsEnabled) return;
     if (info.checkmate) {
         play(fahhMode ? "fahh.checkmate" : "default.checkmate");
     } else if (fahhMode && info.rookCaptured) {
@@ -59,14 +61,17 @@ void SoundManager::playMoveResolution(const MoveSoundInfo& info) {
 }
 
 void SoundManager::playMenuWelcome() {
+    if (!menuSoundsEnabled) return;
     play("menu.welcome");
 }
 
 void SoundManager::playMenuChange() {
+    if (!menuSoundsEnabled) return;
     play("menu.change");
 }
 
 void SoundManager::playMenuClick() {
+    if (!menuSoundsEnabled) return;
     play("menu.click");
 }
 
