@@ -39,13 +39,15 @@ Run from the repository root so runtime asset paths resolve correctly:
 mingw32-make run
 ```
 
-Create a standalone folder containing the executable and runtime assets:
+Create a standalone playable release from this source repository:
 
 ```powershell
 mingw32-make package
 ```
 
-The package is written to `dist/Sixty-Four` and can be regenerated at any time.
+The source version is this repository itself. The playable package is written
+to `dist/Sixty-Four Release` and starts by double-clicking `sixty-four.exe`;
+it resolves all assets relative to its own folder.
 
 ## Controls
 

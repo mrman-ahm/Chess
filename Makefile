@@ -13,7 +13,7 @@ SOURCES = $(wildcard $(SRC_DIR)/*.cpp)
 OBJECTS = $(SOURCES:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 TARGET = $(BIN_DIR)/sixty-four.exe
 TEST_TARGET = $(BIN_DIR)/chess-tests.exe
-PACKAGE_DIR = dist/Sixty-Four
+RELEASE_DIR = dist/Sixty-Four Release
 
 # Rules
 all: $(TARGET)
@@ -39,24 +39,27 @@ test:
 	$(CXX) $(CXXFLAGS) tests/ChessTests.cpp src/Chess.cpp -o $(TEST_TARGET)
 	$(TEST_TARGET)
 
-package: all
-	@if exist "$(PACKAGE_DIR)" rmdir /s /q "$(PACKAGE_DIR)"
-	@mkdir "$(PACKAGE_DIR)"
-	@copy /Y "bin\sixty-four.exe" "$(PACKAGE_DIR)\sixty-four.exe" >nul
-	@copy /Y "external\SFML\bin\*.dll" "$(PACKAGE_DIR)\" >nul
-	@xcopy /E /I /Y "Sprites" "$(PACKAGE_DIR)\Sprites" >nul
-	@xcopy /E /I /Y "Audio" "$(PACKAGE_DIR)\Audio" >nul
-	@mkdir "$(PACKAGE_DIR)\data\config"
-	@mkdir "$(PACKAGE_DIR)\data\saves"
-	@mkdir "$(PACKAGE_DIR)\stockfish"
-	@copy /Y "stockfish\stockfish-windows-x86-64-avx2.exe" "$(PACKAGE_DIR)\stockfish\stockfish-windows-x86-64-avx2.exe" >nul
-	@copy /Y "stockfish\AUTHORS" "$(PACKAGE_DIR)\stockfish\AUTHORS" >nul
-	@copy /Y "stockfish\Copying.txt" "$(PACKAGE_DIR)\stockfish\Copying.txt" >nul
-	@copy /Y "stockfish\README.md" "$(PACKAGE_DIR)\stockfish\README.md" >nul
-	@xcopy /E /I /Y "stockfish\src" "$(PACKAGE_DIR)\stockfish\src" >nul
-	@copy /Y "README.md" "$(PACKAGE_DIR)\README.md" >nul
-	@copy /Y "LICENSE" "$(PACKAGE_DIR)\LICENSE" >nul
-	@copy /Y "THIRD_PARTY_NOTICES.md" "$(PACKAGE_DIR)\THIRD_PARTY_NOTICES.md" >nul
-	@echo Package created at $(PACKAGE_DIR)
+release: all
+	@if exist "$(RELEASE_DIR)" rmdir /s /q "$(RELEASE_DIR)"
+	@mkdir "$(RELEASE_DIR)"
+	@copy /Y "bin\sixty-four.exe" "$(RELEASE_DIR)\sixty-four.exe" >nul
+	@copy /Y "external\SFML\bin\*.dll" "$(RELEASE_DIR)\" >nul
+	@xcopy /E /I /Y "Sprites" "$(RELEASE_DIR)\Sprites" >nul
+	@xcopy /E /I /Y "Audio" "$(RELEASE_DIR)\Audio" >nul
+	@mkdir "$(RELEASE_DIR)\data\config"
+	@mkdir "$(RELEASE_DIR)\data\saves"
+	@mkdir "$(RELEASE_DIR)\stockfish"
+	@copy /Y "stockfish\stockfish-windows-x86-64-avx2.exe" "$(RELEASE_DIR)\stockfish\stockfish-windows-x86-64-avx2.exe" >nul
+	@copy /Y "stockfish\AUTHORS" "$(RELEASE_DIR)\stockfish\AUTHORS" >nul
+	@copy /Y "stockfish\Copying.txt" "$(RELEASE_DIR)\stockfish\Copying.txt" >nul
+	@copy /Y "stockfish\README.md" "$(RELEASE_DIR)\stockfish\README.md" >nul
+	@xcopy /E /I /Y "stockfish\src" "$(RELEASE_DIR)\stockfish\src" >nul
+	@copy /Y "RELEASE_README.txt" "$(RELEASE_DIR)\README.txt" >nul
+	@copy /Y "LICENSE" "$(RELEASE_DIR)\LICENSE" >nul
+	@copy /Y "THIRD_PARTY_NOTICES.md" "$(RELEASE_DIR)\THIRD_PARTY_NOTICES.md" >nul
+	@echo Playable release created at $(RELEASE_DIR)
 
-.PHONY: all clean run test package
+package: release
+	@echo Sixty-Four playable release is ready in dist
+
+.PHONY: all clean run test release package
