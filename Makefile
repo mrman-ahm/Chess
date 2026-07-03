@@ -14,6 +14,7 @@ OBJECTS = $(SOURCES:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 TARGET = $(BIN_DIR)/sixty-four.exe
 TEST_TARGET = $(BIN_DIR)/chess-tests.exe
 RELEASE_DIR = dist/Sixty-Four Release
+RELEASE_ZIP = dist/Sixty-Four-Windows.zip
 
 # Rules
 all: $(TARGET)
@@ -57,7 +58,10 @@ release: all
 	@copy /Y "RELEASE_README.txt" "$(RELEASE_DIR)\README.txt" >nul
 	@copy /Y "LICENSE" "$(RELEASE_DIR)\LICENSE" >nul
 	@copy /Y "THIRD_PARTY_NOTICES.md" "$(RELEASE_DIR)\THIRD_PARTY_NOTICES.md" >nul
+	@if exist "$(RELEASE_ZIP)" del /q "$(RELEASE_ZIP)"
+	@powershell -NoProfile -ExecutionPolicy Bypass -Command "Compress-Archive -Path '$(RELEASE_DIR)\*' -DestinationPath '$(RELEASE_ZIP)' -Force"
 	@echo Playable release created at $(RELEASE_DIR)
+	@echo Upload $(RELEASE_ZIP) to a GitHub Release using the same filename
 
 package: release
 	@echo Sixty-Four playable release is ready in dist

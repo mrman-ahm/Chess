@@ -1,5 +1,14 @@
 # Sixty-Four
 
+<p align="center">
+  <a href="https://github.com/mrman-ahm/Chess/releases/latest/download/Sixty-Four-Windows.zip">
+    <img src="https://img.shields.io/badge/DOWNLOAD_FOR_WINDOWS-SIXTY--FOUR-2f81f7?style=for-the-badge&logo=windows" alt="Download Sixty-Four for Windows">
+  </a>
+</p>
+
+> [!IMPORTANT]
+> **Playable Windows download:** [Download Sixty-Four-Windows.zip](https://github.com/mrman-ahm/Chess/releases/latest/download/Sixty-Four-Windows.zip), extract it, and double-click `sixty-four.exe`. No installation or compiler is required.
+
 Sixty-Four is a customizable Windows chess game built in C++17 with SFML. It was created by Muhammad Ahmad as a student game-development project and exhibition piece.
 
 ## Features
@@ -48,6 +57,10 @@ mingw32-make package
 The source version is this repository itself. The playable package is written
 to `dist/Sixty-Four Release` and starts by double-clicking `sixty-four.exe`;
 it resolves all assets relative to its own folder.
+
+`mingw32-make package` also creates `dist/Sixty-Four-Windows.zip`. Upload that
+file to a GitHub Release with the exact same filename so the download button at
+the top of this README always points to the latest published build.
 
 ## Controls
 
